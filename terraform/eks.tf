@@ -153,3 +153,20 @@ resource "aws_eks_access_policy_association" "github_actions" {
     type = "cluster"
   }
 }
+
+# ----------------------------------------
+# 로컬 kubeconfig 자동 갱신
+# terraform apply 후 클러스터 엔드포인트가 바뀌면 자동으로 kubeconfig를 업데이트
+# ----------------------------------------
+
+resource "null_resource" "update_kubeconfig" {
+  depends_on = [aws_eks_cluster.main]
+
+  provisioner "local-exec" {
+    command = "aws eks update-kubeconfig --name ${aws_eks_cluster.main.name} --region ${var.region}"
+  }
+
+  triggers = {
+    cluster_endpoint = aws_eks_cluster.main.endpoint
+  }
+}
