@@ -1,0 +1,4 @@
+# Metrics Server Helm values
+# EKS는 kubelet 인증서가 자체 서명이라 --kubelet-insecure-tls 필수
+args:
+  - --kubelet-insecure-tls

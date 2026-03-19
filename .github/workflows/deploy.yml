@@ -70,6 +70,7 @@ jobs:
       - name: Helm 저장소 추가
         run: |
           helm repo add eks https://aws.github.io/eks-charts
+          helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
           helm repo update
 
       - name: Karpenter 설치/업그레이드
@@ -101,11 +102,19 @@ jobs:
             --values k8s/aws-lbc/helm-values.yaml \
             --wait --timeout 5m
 
+      - name: Metrics Server 설치/업그레이드
+        run: |
+          helm upgrade --install metrics-server metrics-server/metrics-server \
+            --namespace kube-system \
+            --values k8s/metrics-server/helm-values.yaml \
+            --wait --timeout 3m
+
       - name: 애플리케이션 매니페스트 적용
         run: |
           kubectl apply -f k8s/app/deployment.yaml
           kubectl apply -f k8s/app/service.yaml
           kubectl apply -f k8s/aws-lbc/ingress.yaml
+          kubectl apply -f k8s/app/hpa.yaml
 
       - name: 배포 완료 확인
         run: |
