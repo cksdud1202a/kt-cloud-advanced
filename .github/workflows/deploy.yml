@@ -86,17 +86,17 @@ jobs:
           kubectl apply -f k8s/karpenter/nodeclass.yaml
           kubectl apply -f k8s/karpenter/nodepool.yaml
 
-      - name: LBC webhook Secret 초기화
-        run: |
-          kubectl delete secret aws-load-balancer-tls -n kube-system --ignore-not-found
-          kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found
-
       - name: AWS Load Balancer Controller 설치/업그레이드
         run: |
           helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
             --namespace kube-system \
             --values k8s/aws-lbc/helm-values.yaml \
+            --force \
             --wait --timeout 5m
+
+      - name: 기존 Ingress 삭제
+        run: |
+          kubectl delete ingress hybrid-dr-ingress --ignore-not-found
 
       - name: 애플리케이션 매니페스트 적용
         run: |
