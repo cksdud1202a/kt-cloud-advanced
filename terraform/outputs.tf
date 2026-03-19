@@ -60,9 +60,10 @@ output "efs_id" {
 }
 
 # Route 53 Failover Secondary 레코드에 사용
+# LBC 배포 전에는 "" (기본값), 배포 후 -var="alb_dns=..." 로 주입
 output "alb_dns" {
-  description = "ALB DNS"
-  value       = aws_lb.main.dns_name
+  description = "LBC가 생성한 ALB DNS (var.alb_dns 입력값 그대로 출력)"
+  value       = var.alb_dns
 }
 
 # GitHub Actions에서 kubeconfig 설정 시 필요

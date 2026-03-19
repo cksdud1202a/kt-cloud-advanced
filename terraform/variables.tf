@@ -73,3 +73,12 @@ variable "cloudflare_tunnel_domain" {
 variable "github_actions_role_arn" {
   default = "arn:aws:iam::504284203153:role/hybrid-dr-deploy"
 }
+
+# LBC가 생성한 ALB의 DNS 이름
+# 기본값 "" → secondary Route53 레코드 생성 안 함 (LBC 배포 전 단계)
+# LBC + Ingress 배포 후 ALB DNS를 확인하고 이 변수에 넘기면 레코드 자동 생성
+# 예: terraform apply -var="alb_dns=hybrid-dr-alb-xxxx.ap-northeast-2.elb.amazonaws.com"
+variable "alb_dns" {
+  description = "LBC가 생성한 ALB DNS (비어있으면 secondary Route53 레코드 생략)"
+  default     = ""
+}
