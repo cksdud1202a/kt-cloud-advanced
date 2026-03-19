@@ -89,6 +89,7 @@ jobs:
       - name: LBC webhook Secret 초기화
         run: |
           kubectl delete secret aws-load-balancer-tls -n kube-system --ignore-not-found
+          kubectl delete validatingwebhookconfiguration aws-load-balancer-webhook --ignore-not-found
 
       - name: AWS Load Balancer Controller 설치/업그레이드
         run: |
