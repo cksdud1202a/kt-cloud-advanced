@@ -28,3 +28,4 @@ spec:
   # 노드 스케일 다운 정책
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized  # 사용률 낮으면 자동 제거 (Karpenter v1)
+    consolidateAfter: 30s                          # 30초 후 통합 시도

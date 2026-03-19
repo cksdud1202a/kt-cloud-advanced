@@ -10,7 +10,7 @@ metadata:
   name: hybrid-dr-ingress
   namespace: default
   annotations:
-    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/ingress.class: alb
     # Terraform이 생성한 기존 ALB에 붙임 (새 ALB 생성 안 함)
     alb.ingress.kubernetes.io/load-balancer-name: hybrid-dr-alb
     alb.ingress.kubernetes.io/scheme: internet-facing
