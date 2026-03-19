@@ -132,3 +132,24 @@ resource "aws_eks_access_entry" "karpenter_node" {
 # aws-auth ConfigMap은 EKS 관리형 Node Group이 자동으로 업데이트
 # Karpenter 노드는 aws_eks_access_entry로 처리
 # → Terraform에서 별도 관리 불필요
+
+# ----------------------------------------
+# GitHub Actions 배포 역할 접근 허용
+# terraform apply를 실행한 역할 외에 깃액션 역할도 클러스터 접근 가능하도록 추가
+# ----------------------------------------
+
+resource "aws_eks_access_entry" "github_actions" {
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = var.github_actions_role_arn
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "github_actions" {
+  cluster_name  = aws_eks_cluster.main.name
+  principal_arn = aws_eks_access_entry.github_actions.principal_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+}

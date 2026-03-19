@@ -67,3 +67,9 @@ variable "domain_name" {
 variable "cloudflare_tunnel_domain" {
   description = "온프레미스 Cloudflare Tunnel 도메인"
 }
+
+# GitHub Actions 배포 역할 ARN
+# EKS 클러스터 접근 권한 부여 대상
+variable "github_actions_role_arn" {
+  default = "arn:aws:iam::504284203153:role/hybrid-dr-deploy"
+}
