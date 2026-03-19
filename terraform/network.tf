@@ -10,7 +10,7 @@ resource "aws_vpc" "main" {
   cidr_block           = "192.168.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags = { Name = "${var.project_name}-vpc" }
+  tags = { Name = "${var.project_name}-vpc", Project = var.project_name }
 }
 
 # Internet Gateway 생성 및 VPC 연결

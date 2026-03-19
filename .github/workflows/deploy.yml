@@ -88,7 +88,10 @@ jobs:
 
       - name: 기존 Ingress 삭제
         run: |
-          kubectl delete ingress hybrid-dr-ingress --ignore-not-found
+          kubectl patch ingress hybrid-dr-ingress \
+            --type=merge -p '{"metadata":{"finalizers":[]}}' \
+            --ignore-not-found 2>/dev/null || true
+          kubectl delete ingress hybrid-dr-ingress --ignore-not-found --wait=false
 
       - name: AWS Load Balancer Controller 설치/업그레이드
         run: |
