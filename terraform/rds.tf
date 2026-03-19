@@ -1,13 +1,18 @@
+# ----------------------------------------
+# rds.tf
+# DR RDS - 온프레미스 장애 시 DB 역할을 대신하는 MySQL
+# ----------------------------------------
+
 ########################################
 # RDS Subnet Group
 ########################################
 
 # RDS가 배치될 서브넷 그룹
-# Private Subnet에 배치 (외부 인터넷 차단)
+# RDS는 private 서브넷끼리 묶어야 보안상 맞음
+# private2는 비어있지만 AWS 2개 AZ 요구사항 충족용
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-rds-subnet-group"
-  # RDS는 최소 2개 AZ 서브넷 필요
-  subnet_ids = [aws_subnet.private.id, aws_subnet.public.id]
+  subnet_ids = [aws_subnet.private.id, aws_subnet.private2.id]
 
   tags = {
     Name    = "${var.project_name}-rds-subnet-group"
@@ -22,47 +27,42 @@ resource "aws_db_subnet_group" "main" {
 resource "aws_db_instance" "dr_rds" {
   identifier = "${var.project_name}-dr-rds"
 
-  # MySQL 엔진
   engine         = "mysql"
   engine_version = "8.0"
 
-  # 인스턴스 타입 (최소 스펙 - Warm Standby)
+  # db.t3.micro = 최소 스펙 (Warm Standby → 비용 절감)
   instance_class = "db.t3.micro"
 
-  # 스토리지 설정
-  allocated_storage     = 20    # 최소 20GB
-  max_allocated_storage = 100   # 자동 확장 최대 100GB
+  # 초기 20GB, 부족하면 자동으로 최대 100GB까지 확장
+  allocated_storage     = 20
+  max_allocated_storage = 100
   storage_type          = "gp2"
 
-  # DB 설정
   db_name  = "appdb"
   username = "admin"
   password = var.db_password
 
-  # 서브넷 그룹 적용
-  db_subnet_group_name = aws_db_subnet_group.main.name
-
-  # Security Group 적용
+  db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  # 온프레미스 MySQL CDC 복제 수신을 위해 바이너리 로그 활성화
+  # DMS CDC 복제 수신을 위해 바이너리 로그 활성화
   parameter_group_name = aws_db_parameter_group.mysql.name
 
-  # 백업 설정
-  backup_retention_period = 7      # 7일 백업 보관
-  backup_window           = "03:00-04:00"  # 백업 시간 (UTC)
+  # 매일 03:00~04:00 UTC 자동 백업, 1일 보관(프리티어 최대 제한)
+  backup_retention_period = 1
+  backup_window           = "03:00-04:00"
   maintenance_window      = "Mon:04:00-Mon:05:00"
 
-  # 삭제 보호 비활성화 (테스트 환경)
+  # 테스트 환경 → 삭제 보호 끔
+  # 실제 운영이면 true로 변경 필요
   deletion_protection = false
-
-  # terraform destroy 시 스냅샷 없이 삭제
   skip_final_snapshot = true
 
-  # Multi-AZ 비활성화 (비용 절감 - Warm Standby니까)
+  # Warm Standby → 단일 AZ 유지 (비용 절감)
+  # multi_az = true 하면 비용 2배
   multi_az = false
 
-  # 퍼블릭 접근 차단
+  # 외부 인터넷 접근 차단
   publicly_accessible = false
 
   tags = {
@@ -75,21 +75,18 @@ resource "aws_db_instance" "dr_rds" {
 # RDS Parameter Group
 ########################################
 
-# DMS CDC를 위해 바이너리 로그 활성화
+# DMS CDC 복제를 위한 바이너리 로그 설정
+# 바이너리 로그 = MySQL이 모든 변경사항을 기록하는 로그
+# DMS가 이 로그를 읽어서 온프레미스 변경사항을 RDS에 반영
 resource "aws_db_parameter_group" "mysql" {
   name   = "${var.project_name}-mysql-params"
   family = "mysql8.0"
 
-  # 바이너리 로그 형식 설정 (CDC 복제에 필요)
+  # ROW = 변경된 행 데이터 전체 기록 (DMS CDC 필수 형식)
+  # STATEMENT 형식은 SQL문만 기록해서 CDC에 부적합
   parameter {
     name  = "binlog_format"
     value = "ROW"
-  }
-
-  # 바이너리 로그 보관 기간 (시간 단위)
-  parameter {
-    name  = "binlog_retention_hours"  
-    value = "24"
   }
 
   tags = {

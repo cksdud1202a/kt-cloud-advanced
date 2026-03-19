@@ -31,24 +31,6 @@ resource "aws_route53_health_check" "onprem" {
   }
 }
 
-########################################
-# Route 53 Health Check (AWS ALB)
-########################################
-
-# AWS ALB 헬스체크
-resource "aws_route53_health_check" "aws" {
-  fqdn              = aws_lb.main.dns_name
-  port              = 80
-  type              = "HTTP"
-  resource_path     = "/"
-  failure_threshold = 3
-  request_interval  = 10
-
-  tags = {
-    Name    = "${var.project_name}-aws-hc"
-    Project = var.project_name
-  }
-}
 
 ########################################
 # Route 53 Failover Records
@@ -57,7 +39,7 @@ resource "aws_route53_health_check" "aws" {
 # Primary 레코드 (온프레미스 - 평시 트래픽)
 resource "aws_route53_record" "primary" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = var.domain_name
+  name    = "www.${var.domain_name}"  # www.test.hybrid-dr.com
   type    = "CNAME"
   ttl     = 60
 
@@ -75,9 +57,11 @@ resource "aws_route53_record" "primary" {
 }
 
 # Secondary 레코드 (AWS ALB - 장애 시 트래픽)
+# health_check_id 제거 → Primary 장애 시 무조건 ALB로 Failover (last resort)
+# health check를 붙이면 ALB도 unhealthy일 때 아무 레코드도 서빙 안 하는 문제 발생
 resource "aws_route53_record" "secondary" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = var.domain_name
+  name    = "www.${var.domain_name}"  # www.test.hybrid-dr.com
   type    = "CNAME"
   ttl     = 60
 
@@ -88,6 +72,5 @@ resource "aws_route53_record" "secondary" {
   # AWS ALB DNS
   records = [aws_lb.main.dns_name]
 
-  health_check_id = aws_route53_health_check.aws.id
   set_identifier  = "secondary"
 }

@@ -1,14 +1,19 @@
+# ----------------------------------------
+# dms.tf
+# DMS CDC - 온프레미스 MySQL → DR RDS 실시간 복제
+# ----------------------------------------
+
 ########################################
 # DMS Replication Subnet Group
 ########################################
 
-# DMS가 사용할 서브넷 그룹
+# DMS도 private 서브넷끼리 묶어야 보안상 맞음
 resource "aws_dms_replication_subnet_group" "main" {
   replication_subnet_group_id          = "${var.project_name}-dms-subnet-group"
   replication_subnet_group_description = "DMS subnet group for hybrid-dr"
   subnet_ids = [
-    aws_subnet.public.id,
-    aws_subnet.private.id
+    aws_subnet.private.id,
+    aws_subnet.private2.id
   ]
 
   tags = {
@@ -22,21 +27,19 @@ resource "aws_dms_replication_subnet_group" "main" {
 ########################################
 
 # DMS가 실제로 데이터 복제 작업을 수행하는 인스턴스
+# 온프레미스 MySQL 읽어서 → DR RDS에 쓰는 역할
 resource "aws_dms_replication_instance" "main" {
   replication_instance_id    = "${var.project_name}-dms-instance"
-  replication_instance_class = "dms.t3.micro"  # 최소 스펙
+  replication_instance_class = "dms.t3.medium"
 
   # 단일 AZ (비용 절감)
   multi_az = false
 
-  # Public 접근 차단
+  # 외부 접근 차단
   publicly_accessible = false
 
-  # 서브넷 그룹 적용
   replication_subnet_group_id = aws_dms_replication_subnet_group.main.id
-
-  # Security Group 적용
-  vpc_security_group_ids = [aws_security_group.rds.id]
+  vpc_security_group_ids      = [aws_security_group.rds.id]
 
   depends_on = [
     aws_iam_role_policy_attachment.dms_vpc,
@@ -54,17 +57,16 @@ resource "aws_dms_replication_instance" "main" {
 ########################################
 
 # 온프레미스 MySQL을 CDC 소스로 설정
+# Tailscale VPN으로 연결되는 온프레미스 서버 IP 사용
 resource "aws_dms_endpoint" "source" {
   endpoint_id   = "${var.project_name}-source-mysql"
   endpoint_type = "source"
   engine_name   = "mysql"
 
-  # 온프레미스 MySQL 접속 정보
-  # Tailscale VPN으로 연결되는 온프레미스 MySQL IP
-  server_name = var.onprem_mysql_ip
+  server_name = var.onprem_mysql_ip  # Tailscale IP
   port        = 3306
-  username    = "repl_user"  # 복제 전용 계정
-  password    = var.db_password
+  username    = "repl_user"          # 복제 전용 계정
+  password    = var.onprem_repl_password
 
   tags = {
     Name    = "${var.project_name}-source-mysql"
@@ -76,13 +78,12 @@ resource "aws_dms_endpoint" "source" {
 # DMS Target Endpoint (DR RDS)
 ########################################
 
-# DR RDS를 CDC 타겟으로 설정
 resource "aws_dms_endpoint" "target" {
   endpoint_id   = "${var.project_name}-target-rds"
   endpoint_type = "target"
   engine_name   = "mysql"
 
-  # DR RDS 접속 정보
+  # Terraform이 RDS 생성 후 자동으로 엔드포인트 주소 가져옴
   server_name = aws_db_instance.dr_rds.address
   port        = 3306
   username    = "admin"
@@ -99,24 +100,25 @@ resource "aws_dms_endpoint" "target" {
 ########################################
 
 # 온프레미스 MySQL → DR RDS CDC 복제 태스크
+# full-load = 처음에 전체 데이터 복사
+# cdc = 이후 변경사항만 실시간 반영
 resource "aws_dms_replication_task" "cdc" {
-  replication_task_id      = "${var.project_name}-cdc-task"
-  migration_type           = "cdc"  # Change Data Capture
+  replication_task_id = "${var.project_name}-cdc-task"
+  migration_type      = "full-load-and-cdc"
 
-  # 소스, 타겟, 복제 인스턴스 연결
   source_endpoint_arn      = aws_dms_endpoint.source.endpoint_arn
   target_endpoint_arn      = aws_dms_endpoint.target.endpoint_arn
   replication_instance_arn = aws_dms_replication_instance.main.replication_instance_arn
 
-  # 복제할 테이블 설정 (전체 DB 복제)
+  # 전체 DB 복제 (모든 스키마, 모든 테이블)
   table_mappings = jsonencode({
     rules = [{
       rule-type = "selection"
       rule-id   = "1"
       rule-name = "1"
       object-locator = {
-        schema-name = "%"  # 모든 스키마
-        table-name  = "%"  # 모든 테이블
+        schema-name = "%"
+        table-name  = "%"
       }
       rule-action = "include"
     }]

@@ -1,56 +1,11 @@
-# Worker Node SG (EKS Node Group)
-resource "aws_security_group" "worker_node" {
-  name   = "${var.project_name}-worker-sg"
+# ----------------------------------------
+# security.tf
+# ----------------------------------------
+
+# EKS Control Plane Security Group
+resource "aws_security_group" "eks_cluster" {
+  name   = "${var.project_name}-eks-cluster-sg"
   vpc_id = aws_vpc.main.id
-
-  ingress {
-    description = "EKS Control Plane to Worker Node"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "SSH via Tailscale only"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["100.64.0.0/10"]  # Tailscale IP 대역
-  }
-
-  ingress {
-    description = "Kubelet EKS Control Plane to Worker Nod"
-    from_port   = 10250
-    to_port     = 10250
-    protocol    = "tcp"
-    cidr_blocks = ["192.168.0.0/16"]  # VPC 내부
-  }
-
-  ingress {
-    description = "NodePort range ALB to Worker Node"
-    from_port   = 30000
-    to_port     = 32767
-    protocol    = "tcp"
-    cidr_blocks = ["192.168.0.0/16"]
-  }
-
-  ingress {
-    description = "Tailscale UDP"
-    from_port   = 41641
-    to_port     = 41641
-    protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Worker Node 간 통신 (Pod 간 통신, CNI)
-  ingress {
-    description = "Worker Node internal communication"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    self        = true  # 같은 SG끼리 허용
-  }
 
   egress {
     from_port   = 0
@@ -59,10 +14,111 @@ resource "aws_security_group" "worker_node" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  tags = { Name = "${var.project_name}-eks-cluster-sg" }
+}
+
+# Worker Node Security Group
+resource "aws_security_group" "worker_node" {
+  name   = "${var.project_name}-worker-sg"
+  vpc_id = aws_vpc.main.id
+
+  # ingress 블록 전부 제거
+  # 아래 aws_security_group_rule로 관리
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  lifecycle {
+    ignore_changes = [ingress]
+  }
+
   tags = { Name = "${var.project_name}-worker-sg" }
 }
 
-# Monitoring EC2 SG (Prometheus + Grafana + Tailscale)
+# SSH via Tailscale
+resource "aws_security_group_rule" "worker_ssh" {
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks       = ["100.64.0.0/10"]
+  security_group_id = aws_security_group.worker_node.id
+  description       = "SSH via Tailscale only"
+}
+
+# Tailscale UDP
+resource "aws_security_group_rule" "worker_tailscale_udp" {
+  type              = "ingress"
+  from_port         = 41641
+  to_port           = 41641
+  protocol          = "udp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.worker_node.id
+  description       = "Tailscale UDP"
+}
+
+# Worker Node 간 내부 통신
+resource "aws_security_group_rule" "worker_internal" {
+  type              = "ingress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  self              = true
+  security_group_id = aws_security_group.worker_node.id
+  description       = "Worker Node internal communication"
+}
+
+# [변경] ingress 블록에서 source_security_group_id 못 써서
+# aws_security_group_rule로 분리
+
+# 443: Control Plane → Worker Node
+resource "aws_security_group_rule" "worker_from_eks_443" {
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.eks_cluster.id
+  security_group_id        = aws_security_group.worker_node.id
+  description              = "EKS Control Plane to Worker Node 443"
+}
+
+resource "aws_security_group_rule" "eks_from_worker_443" {
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.worker_node.id
+  security_group_id        = aws_security_group.eks_cluster.id
+  description              = "Worker Node to Control Plane 443"
+}
+
+# 10250: Control Plane → Worker Node Kubelet
+resource "aws_security_group_rule" "worker_from_eks_10250" {
+  type                     = "ingress"
+  from_port                = 10250
+  to_port                  = 10250
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.eks_cluster.id
+  security_group_id        = aws_security_group.worker_node.id
+  description              = "Kubelet EKS Control Plane to Worker Node"
+}
+
+# 30000~32767: ALB → Worker Node NodePort
+resource "aws_security_group_rule" "worker_from_alb_nodeport" {
+  type                     = "ingress"
+  from_port                = 30000
+  to_port                  = 32767
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.alb.id
+  security_group_id        = aws_security_group.worker_node.id
+  description              = "NodePort range ALB to Worker Node"
+}
+
+# Monitoring EC2 Security Group
 resource "aws_security_group" "monitoring" {
   name   = "${var.project_name}-monitoring-sg"
   vpc_id = aws_vpc.main.id
@@ -109,7 +165,19 @@ resource "aws_security_group" "monitoring" {
   tags = { Name = "${var.project_name}-monitoring-sg" }
 }
 
-# DR RDS SG
+# 9100: Prometheus(Monitoring EC2) → Worker Node node_exporter
+# DR 시나리오에서 온프레미스 vs AWS 메트릭 비교용
+resource "aws_security_group_rule" "worker_from_monitoring_9100" {
+  type                     = "ingress"
+  from_port                = 9100
+  to_port                  = 9100
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.monitoring.id
+  security_group_id        = aws_security_group.worker_node.id
+  description              = "node_exporter scrape from Monitoring EC2"
+}
+
+# DR RDS Security Group
 resource "aws_security_group" "rds" {
   name   = "${var.project_name}-rds-sg"
   vpc_id = aws_vpc.main.id
@@ -140,7 +208,7 @@ resource "aws_security_group" "rds" {
   tags = { Name = "${var.project_name}-rds-sg" }
 }
 
-# ALB SG (장애 시 Failover용)
+# ALB Security Group
 resource "aws_security_group" "alb" {
   name   = "${var.project_name}-alb-sg"
   vpc_id = aws_vpc.main.id
