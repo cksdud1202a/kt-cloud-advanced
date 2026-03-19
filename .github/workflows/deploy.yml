@@ -1,0 +1,106 @@
+name: Deploy to EKS
+
+"on":
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-2
+  CLUSTER_NAME: hybrid-dr-eks
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # OIDC 토큰 발급 (aws-actions/configure-aws-credentials)
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: AWS 자격증명 설정
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: kubeconfig 업데이트
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.CLUSTER_NAME }} \
+            --region ${{ env.AWS_REGION }}
+
+      # AWS CLI로 직접 조회 (로컬 terraform state 불필요)
+      - name: 클러스터 정보 조회
+        id: tf_output
+        run: |
+          echo "cluster_endpoint=$(aws eks describe-cluster \
+            --name ${{ env.CLUSTER_NAME }} \
+            --query 'cluster.endpoint' --output text)" >> $GITHUB_OUTPUT
+
+          echo "karpenter_role_arn=$(aws iam get-role \
+            --role-name hybrid-dr-karpenter-controller \
+            --query 'Role.Arn' --output text)" >> $GITHUB_OUTPUT
+
+          echo "vpc_id=$(aws ec2 describe-vpcs \
+            --filters 'Name=tag:Project,Values=hybrid-dr' \
+            --query 'Vpcs[0].VpcId' --output text)" >> $GITHUB_OUTPUT
+
+          echo "aws_lbc_role_arn=$(aws iam get-role \
+            --role-name hybrid-dr-aws-lbc \
+            --query 'Role.Arn' --output text)" >> $GITHUB_OUTPUT
+
+      - name: Karpenter Helm values 치환
+        run: |
+          sed -i "s|__CLUSTER_ENDPOINT__|${{ steps.tf_output.outputs.cluster_endpoint }}|g" \
+            k8s/karpenter/helm-values.yaml
+          sed -i "s|__KARPENTER_ROLE_ARN__|${{ steps.tf_output.outputs.karpenter_role_arn }}|g" \
+            k8s/karpenter/helm-values.yaml
+
+      - name: AWS LBC Helm values 치환
+        run: |
+          sed -i "s|__VPC_ID__|${{ steps.tf_output.outputs.vpc_id }}|g" \
+            k8s/aws-lbc/helm-values.yaml
+          sed -i "s|__AWS_LBC_ROLE_ARN__|${{ steps.tf_output.outputs.aws_lbc_role_arn }}|g" \
+            k8s/aws-lbc/helm-values.yaml
+
+      - name: Helm 저장소 추가
+        run: |
+          helm repo add eks https://aws.github.io/eks-charts
+          helm repo update
+
+      - name: Karpenter 설치/업그레이드
+        run: |
+          helm upgrade --install karpenter \
+            oci://public.ecr.aws/karpenter/karpenter \
+            --version 1.0.0 \
+            --namespace karpenter --create-namespace \
+            --values k8s/karpenter/helm-values.yaml \
+            --wait --timeout 5m
+
+      - name: Karpenter NodeClass/NodePool 적용
+        run: |
+          kubectl apply -f k8s/karpenter/nodeclass.yaml
+          kubectl apply -f k8s/karpenter/nodepool.yaml
+
+      - name: AWS Load Balancer Controller 설치/업그레이드
+        run: |
+          helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+            --namespace kube-system \
+            --values k8s/aws-lbc/helm-values.yaml \
+            --wait --timeout 5m
+
+      - name: 애플리케이션 매니페스트 적용
+        run: |
+          kubectl apply -f k8s/app/deployment.yaml
+          kubectl apply -f k8s/app/service.yaml
+          kubectl apply -f k8s/aws-lbc/ingress.yaml
+
+      - name: 배포 완료 확인
+        run: |
+          kubectl rollout status deployment/app --timeout=3m
+          kubectl get pods -A
+          kubectl get ingress

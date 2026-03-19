@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service   # ingress.yaml의 backend.service.name과 일치
+  namespace: default
+  labels:
+    app: app
+    project: hybrid-dr
+spec:
+  type: NodePort
+  selector:
+    app: app
+  ports:
+    - protocol: TCP
+      port: 80          # 클러스터 내부 포트
+      targetPort: 80    # 컨테이너 포트
+      nodePort: 30080   # ALB → Worker Node NodePort (ingress.yaml port와 일치)

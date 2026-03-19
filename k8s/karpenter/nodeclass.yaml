@@ -1,0 +1,21 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+spec:
+  # Karpenter가 생성하는 노드에 적용할 Instance Profile
+  # terraform output: karpenter_node_instance_profile
+  instanceProfile: hybrid-dr-karpenter-node-profile
+  amiSelectorTerms:
+    - alias: al2@latest  # amiFamily 대신 alias 방식 사용 (Karpenter v1)
+  # Worker Node와 같은 서브넷에 배치
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: hybrid-dr  # 이걸로 변경
+  # Worker Node SG 적용
+  securityGroupSelectorTerms:
+    - tags:
+        Name: hybrid-dr-worker-sg
+  tags:
+    Name: hybrid-dr-karpenter-node 
+    Project: hybrid-dr              

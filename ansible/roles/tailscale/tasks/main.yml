@@ -1,0 +1,40 @@
+---
+# Tailscale 설치
+- name: Tailscale 설치 스크립트 실행
+  shell: curl -fsSL https://tailscale.com/install.sh | sh
+  args:
+    creates: /usr/bin/tailscale  # 이미 설치돼 있으면 스킵
+
+# Subnet Router 동작을 위한 OS 레벨 IP 포워딩 활성화
+# DMS → 모니터링 EC2 → Tailscale 망으로 패킷을 중계하려면 필수
+- name: IP 포워딩 활성화
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_set: yes
+    state: present
+    reload: yes
+
+# Tailscale 서비스 시작
+- name: Tailscale 서비스 활성화
+  systemd:
+    name: tailscaled
+    enabled: yes
+    state: started
+
+# Tailscale 최초 연결
+# authkey는 Tailscale 콘솔에서 발급, GitHub Actions secret으로 관리
+# 이미 연결돼 있으면 스킵
+- name: Tailscale 네트워크 연결
+  shell: tailscale up --authkey={{ tailscale_authkey }} --accept-routes
+  args:
+    creates: /var/lib/tailscale/tailscaled.state
+  no_log: true  # authkey가 Ansible 로그에 노출되지 않도록
+
+# Subnet Router 라우트 설정
+# --advertise-routes: VPC CIDR(192.168.0.0/16)을 Tailscale 망에 광고
+#   → DMS가 온프레미스 Tailscale IP로 라우팅 가능
+# 이미 연결된 경우에도 항상 실행해서 라우트 누락 방지
+- name: Tailscale Subnet Router 라우트 설정
+  shell: tailscale set --advertise-routes=192.168.0.0/16 --accept-routes
+  changed_when: false

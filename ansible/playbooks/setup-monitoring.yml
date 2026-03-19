@@ -1,0 +1,10 @@
+---
+- name: Monitoring EC2 전체 설정
+  hosts: monitoring
+  become: true  # sudo 권한으로 실행
+
+  roles:
+    - common      # swap, 패키지 업데이트
+    - tailscale   # Tailscale VPN 설치
+    - docker      # Docker 설치
+    # - monitoring  # Prometheus, Grafana 컨테이너 실행, 후에 추가

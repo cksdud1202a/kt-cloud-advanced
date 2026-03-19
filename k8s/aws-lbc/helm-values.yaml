@@ -1,0 +1,18 @@
+# AWS Load Balancer Controller Helm values
+# 설치 명령:
+#   helm repo add eks https://aws.github.io/eks-charts
+#   helm repo update
+#   helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+#     --namespace kube-system \
+#     --values k8s/aws-lbc/helm-values.yaml
+
+clusterName: hybrid-dr-eks
+region: ap-northeast-2
+vpcId: __VPC_ID__  # terraform output으로 확인 후 입력
+
+serviceAccount:
+  create: true
+  name: aws-load-balancer-controller
+  annotations:
+    # terraform output aws_lbc_role_arn 값으로 교체
+    eks.amazonaws.com/role-arn: __AWS_LBC_ROLE_ARN__

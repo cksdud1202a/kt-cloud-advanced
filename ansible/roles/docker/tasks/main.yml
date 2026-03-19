@@ -1,0 +1,22 @@
+---
+# Docker 설치
+- name: Docker 설치
+  apt:
+    name: docker.io
+    state: present
+    update_cache: yes
+
+# Docker 서비스 시작
+- name: Docker 서비스 활성화
+  systemd:
+    name: docker
+    enabled: yes
+    state: started
+
+# ubuntu 유저를 docker 그룹에 추가
+# sudo 없이 docker 명령어 실행 가능
+- name: ubuntu 유저 docker 그룹 추가
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes

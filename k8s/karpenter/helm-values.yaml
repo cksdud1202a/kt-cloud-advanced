@@ -1,0 +1,15 @@
+# Karpenter Helm 설치 설정값
+# terraform output에서 가져온 값들 사용
+
+controller:
+  env:
+    - name: AWS_REGION
+      value: ap-northeast-2
+
+settings:
+  clusterName: hybrid-dr-eks
+  clusterEndpoint: __CLUSTER_ENDPOINT__  # terraform output eks_cluster_endpoint
+
+serviceAccount:
+  annotations:
+    eks.amazonaws.com/role-arn: __KARPENTER_ROLE_ARN__  # terraform output karpenter_controller_role_arn

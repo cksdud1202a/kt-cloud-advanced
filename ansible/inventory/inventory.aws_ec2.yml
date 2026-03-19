@@ -1,0 +1,24 @@
+plugin: aws_ec2
+regions:
+  - ap-northeast-2
+
+# hybrid-dr 프로젝트의 실행 중인 인스턴스만 수집
+filters:
+  tag:Project: "hybrid-dr"
+  instance-state-name: ['running']
+
+# Role 태그 값으로 그룹 자동 생성
+# monitoring.tf에서 Role = "monitoring" 태그 있음
+# → 자동으로 'monitoring' 그룹 생성됨
+keyed_groups:
+  - key: tags.Role
+    separator: ""
+
+# Ansible 내부에서 Public IP를 호스트 이름으로 사용
+hostnames:
+  - ip-address
+
+# 접속 변수 설정
+compose:
+  ansible_user: "'ubuntu'"
+  ansible_host: public_ip_address

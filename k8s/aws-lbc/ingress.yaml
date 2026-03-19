@@ -1,0 +1,34 @@
+# Ingress 리소스
+# LBC가 이 리소스를 감지해서 hybrid-dr-alb에
+# Listener(80)와 Target Group(NodePort 30080)을 자동으로 생성·등록함
+#
+# 적용 명령: kubectl apply -f k8s/aws-lbc/ingress.yaml
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hybrid-dr-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: alb
+    # Terraform이 생성한 기존 ALB에 붙임 (새 ALB 생성 안 함)
+    alb.ingress.kubernetes.io/load-balancer-name: hybrid-dr-alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    # instance 모드: ALB → Worker Node NodePort로 트래픽 전달
+    alb.ingress.kubernetes.io/target-type: instance
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "10"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app-service   # 실제 앱 Service 이름으로 교체
+                port:
+                  number: 30080

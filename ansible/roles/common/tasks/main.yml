@@ -1,0 +1,40 @@
+---
+# 패키지 목록 업데이트
+- name: apt 업데이트
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+# Swap 2GB 설정
+# Prometheus, Grafana 메모리 부족 방지
+- name: swapfile 생성
+  command: fallocate -l 2G /swapfile
+  args:
+    creates: /swapfile  # 이미 있으면 스킵
+
+- name: swapfile 권한 설정
+  file:
+    path: /swapfile
+    mode: '0600'
+
+- name: swapfile 포맷
+  command: mkswap /swapfile
+  args:
+    creates: /swapfile.formatted  # 별도 마커 파일로 idempotency 체크
+
+- name: swapfile 포맷 마커 생성
+  file:
+    path: /swapfile.formatted
+    state: touch
+
+- name: swap 활성화
+  command: swapon /swapfile
+  register: swapon_result
+  failed_when: swapon_result.rc != 0 and 'already' not in swapon_result.stderr
+
+# 재부팅 후에도 swap 유지
+- name: fstab에 swap 등록
+  lineinfile:
+    path: /etc/fstab
+    line: '/swapfile none swap sw 0 0'
+    state: present
