@@ -31,4 +31,4 @@ spec:
               service:
                 name: app-service   # 실제 앱 Service 이름으로 교체
                 port:
-                  number: 30080
+                  number: 80
