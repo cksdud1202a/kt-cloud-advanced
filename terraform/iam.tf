@@ -324,6 +324,7 @@ resource "aws_iam_policy" "aws_lbc" {
           "ec2:DescribeVpcs",
           "ec2:DescribeVpcPeeringConnections",
           "ec2:DescribeSubnets",
+          "ec2:DescribeRouteTables",
           "ec2:DescribeSecurityGroups",
           "ec2:DescribeInstances",
           "ec2:DescribeNetworkInterfaces",
