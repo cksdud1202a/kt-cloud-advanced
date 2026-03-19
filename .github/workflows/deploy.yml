@@ -86,6 +86,10 @@ jobs:
           kubectl apply -f k8s/karpenter/nodeclass.yaml
           kubectl apply -f k8s/karpenter/nodepool.yaml
 
+      - name: LBC webhook Secret 초기화
+        run: |
+          kubectl delete secret aws-load-balancer-tls -n kube-system --ignore-not-found
+
       - name: AWS Load Balancer Controller 설치/업그레이드
         run: |
           helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
