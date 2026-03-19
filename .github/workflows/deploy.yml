@@ -86,6 +86,10 @@ jobs:
           kubectl apply -f k8s/karpenter/nodeclass.yaml
           kubectl apply -f k8s/karpenter/nodepool.yaml
 
+      - name: 기존 Ingress 삭제
+        run: |
+          kubectl delete ingress hybrid-dr-ingress --ignore-not-found
+
       - name: AWS Load Balancer Controller 설치/업그레이드
         run: |
           helm uninstall aws-load-balancer-controller -n kube-system || true
@@ -93,10 +97,6 @@ jobs:
             --namespace kube-system \
             --values k8s/aws-lbc/helm-values.yaml \
             --wait --timeout 5m
-
-      - name: 기존 Ingress 삭제
-        run: |
-          kubectl delete ingress hybrid-dr-ingress --ignore-not-found
 
       - name: 애플리케이션 매니페스트 적용
         run: |
