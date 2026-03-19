@@ -10,7 +10,6 @@ metadata:
   name: hybrid-dr-ingress
   namespace: default
   annotations:
-    alb.ingress.kubernetes.io/ingress.class: alb
     # Terraform이 생성한 기존 ALB에 붙임 (새 ALB 생성 안 함)
     alb.ingress.kubernetes.io/load-balancer-name: hybrid-dr-alb
     alb.ingress.kubernetes.io/scheme: internet-facing
@@ -22,6 +21,7 @@ metadata:
     alb.ingress.kubernetes.io/healthy-threshold-count: "2"
     alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
 spec:
+  ingressClassName: alb
   rules:
     - http:
         paths:
