@@ -5,7 +5,7 @@
 # AWS Load Balancer Controller(LBC)가 k8s/aws-lbc/ingress.yaml의
 # Ingress 어노테이션을 통해 단독 관리함.
 # terraform이 ALB를 미리 생성하면 DuplicateLoadBalancerName 충돌 발생.
-#######################################
+######################################
 
 #######################################
 # Destroy-time cleanup
@@ -50,7 +50,7 @@ resource "null_resource" "cleanup_k8s_resources" {
         --query "SecurityGroups[*].GroupId" \
         --output text --region ${self.triggers.region}); do
         echo "Deleting SG: $SG_ID"
-        aws ec2 delete-security-group --group-id "$SG_ID" --region ${self.triggers.region} || true
+        aws ec2 delete-security-group --group-id "$SG_ID" --region ${self.triggers.region}
       done
     EOT
   }

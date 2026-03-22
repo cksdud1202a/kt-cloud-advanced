@@ -33,9 +33,11 @@ resource "aws_eks_cluster" "main" {
   }
 
   # IAM Role 정책 연결 완료 후 EKS 클러스터 생성
+  # cleanup_k8s_resources 의존 → destroy 시 EKS가 cleanup보다 먼저 삭제됨
   depends_on = [
     aws_iam_role_policy_attachment.eks_cluster_policy,
     aws_iam_role_policy_attachment.eks_vpc_resource,
+    null_resource.cleanup_k8s_resources,
   ]
 
   tags = {
@@ -103,6 +105,7 @@ resource "aws_eks_node_group" "worker" {
     aws_iam_role_policy_attachment.eks_worker_node,
     aws_iam_role_policy_attachment.eks_cni,
     aws_iam_role_policy_attachment.eks_ecr,
+    null_resource.cleanup_k8s_resources,
   ]
 
   tags = {
