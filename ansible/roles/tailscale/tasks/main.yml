@@ -146,8 +146,7 @@
       Wants=network-online.target
 
       [Service]
-      Type=oneshot
-      RemainAfterExit=yes
+      Type=simple
       ExecStart=/usr/local/bin/start-replication-loop.sh
       StandardOutput=journal
       StandardError=journal

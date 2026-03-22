@@ -26,11 +26,12 @@
   file:
     path: /swapfile.formatted
     state: touch
+  changed_when: false
 
 - name: swap 활성화
   command: swapon /swapfile
   register: swapon_result
-  failed_when: swapon_result.rc != 0 and 'already' not in swapon_result.stderr
+  failed_when: swapon_result.rc != 0 and 'already' not in swapon_result.stderr and 'busy' not in swapon_result.stderr
 
 # 재부팅 후에도 swap 유지
 - name: fstab에 swap 등록
