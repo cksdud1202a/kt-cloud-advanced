@@ -264,6 +264,27 @@ resource "aws_iam_role_policy_attachment" "monitoring_ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# DMS 복제 태스크 시작/조회 권한
+# Tailscale 연결 감지 후 start-replication.sh가 DMS task를 시작할 때 사용
+resource "aws_iam_role_policy" "monitoring_dms" {
+  role = aws_iam_role.monitoring.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dms:StartReplicationTask",
+          "dms:DescribeReplicationTasks",
+          "efs:DescribeFileSystems"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 ########################################
 # AWS Load Balancer Controller Role (IRSA)
 # LBC Pod가 ALB/Target Group을 생성·관리할 때 사용
@@ -543,9 +564,52 @@ resource "aws_iam_role" "github_actions_deploy" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "github_actions_deploy" {
-  role       = aws_iam_role.github_actions_deploy.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+resource "aws_iam_role_policy" "github_actions_deploy" {
+  role = aws_iam_role.github_actions_deploy.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # EKS 클러스터 정보 조회 + kubeconfig 업데이트
+        Effect = "Allow"
+        Action = [
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:AccessKubernetesApi"
+        ]
+        Resource = "*"
+      },
+      {
+        # IAM Role/InstanceProfile 조회 (Helm values 치환용)
+        Effect = "Allow"
+        Action = [
+          "iam:GetRole",
+          "iam:GetInstanceProfile"
+        ]
+        Resource = "*"
+      },
+      {
+        # EC2 조회 (VPC ID 조회 + Ansible 동적 인벤토리)
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeVpcs",
+          "ec2:DescribeInstances",
+          "ec2:DescribeTags",
+          "ec2:DescribeRegions",
+          "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribeInternetGateways",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeAddresses",
+          "ec2:DescribeAccountAttributes"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
 resource "aws_iam_openid_connect_provider" "github" {

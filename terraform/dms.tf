@@ -39,7 +39,7 @@ resource "aws_dms_replication_instance" "main" {
   publicly_accessible = false
 
   replication_subnet_group_id = aws_dms_replication_subnet_group.main.id
-  vpc_security_group_ids      = [aws_security_group.rds.id]
+  vpc_security_group_ids      = [aws_security_group.dms.id]
 
   depends_on = [
     aws_iam_role_policy_attachment.dms_vpc,

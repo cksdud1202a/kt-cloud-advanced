@@ -37,6 +37,12 @@ resource "aws_efs_mount_target" "private" {
   security_groups = [aws_security_group.efs.id]
 }
 
+resource "aws_efs_mount_target" "private2" {
+  file_system_id  = aws_efs_file_system.main.id
+  subnet_id       = aws_subnet.private2.id
+  security_groups = [aws_security_group.efs.id]
+}
+
 ########################################
 # EFS Security Group
 ########################################

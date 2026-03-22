@@ -85,8 +85,9 @@ resource "aws_db_parameter_group" "mysql" {
   # ROW = 변경된 행 데이터 전체 기록 (DMS CDC 필수 형식)
   # STATEMENT 형식은 SQL문만 기록해서 CDC에 부적합
   parameter {
-    name  = "binlog_format"
-    value = "ROW"
+    name         = "binlog_format"
+    value        = "ROW"
+    apply_method = "immediate"  # dynamic 파라미터 — 재부팅 없이 즉시 적용
   }
 
   tags = {

@@ -21,9 +21,6 @@ resource "aws_instance" "monitoring" {
   # false로 설정하면 DMS → 100.64.x.x 같은 경유 트래픽도 처리 가능
   source_dest_check = false
 
-  # user_data 제거
-  # swap, Tailscale, Docker, Prometheus, Grafana 설치는
-  # ansible/playbooks/setup-monitoring.yml에서 담당
 
   tags = {
     Name    = "${var.project_name}-monitoring"

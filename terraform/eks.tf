@@ -140,7 +140,7 @@ resource "aws_eks_access_entry" "karpenter_node" {
 
 resource "aws_eks_access_entry" "github_actions" {
   cluster_name  = aws_eks_cluster.main.name
-  principal_arn = var.github_actions_role_arn
+  principal_arn = aws_iam_role.github_actions_deploy.arn  # iam.tf 참조 (하드코딩 제거)
   type          = "STANDARD"
 }
 

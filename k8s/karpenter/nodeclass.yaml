@@ -4,8 +4,8 @@ metadata:
   name: default
 spec:
   # Karpenter가 생성하는 노드에 적용할 Instance Profile
-  # terraform output: karpenter_node_instance_profile
-  instanceProfile: hybrid-dr-karpenter-node-profile
+  # deploy.yml에서 AWS CLI로 동적 조회 후 치환
+  instanceProfile: __KARPENTER_NODE_PROFILE__
   amiSelectorTerms:
     - alias: al2@latest  # amiFamily 대신 alias 방식 사용 (Karpenter v1)
   # Worker Node와 같은 서브넷에 배치

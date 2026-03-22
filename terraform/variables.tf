@@ -68,10 +68,17 @@ variable "cloudflare_tunnel_domain" {
   description = "온프레미스 Cloudflare Tunnel 도메인"
 }
 
-# GitHub Actions 배포 역할 ARN
-# EKS 클러스터 접근 권한 부여 대상
-variable "github_actions_role_arn" {
-  default = "arn:aws:iam::504284203153:role/hybrid-dr-deploy"
+
+# 온프레미스 NFS 서버 Tailscale IP
+# DataSync Agent가 이 IP로 NFS 마운트 (Tailscale VPN 경유)
+variable "onprem_nfs_ip" {
+  description = "온프레미스 NFS 서버 Tailscale IP"
+}
+
+# 온프레미스 NFS export 경로
+variable "onprem_nfs_path" {
+  description = "온프레미스 NFS export 경로"
+  default     = "/data"
 }
 
 # LBC가 생성한 ALB의 DNS 이름

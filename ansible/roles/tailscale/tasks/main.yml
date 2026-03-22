@@ -22,19 +22,134 @@
     enabled: yes
     state: started
 
-# Tailscale 최초 연결
-# authkey는 Tailscale 콘솔에서 발급, GitHub Actions secret으로 관리
-# 이미 연결돼 있으면 스킵
-- name: Tailscale 네트워크 연결
-  shell: tailscale up --authkey={{ tailscale_authkey }} --accept-routes
-  args:
-    creates: /var/lib/tailscale/tailscaled.state
-  no_log: true  # authkey가 Ansible 로그에 노출되지 않도록
+# Tailscale 연결은 수동으로 진행
+# EC2 접속 후: sudo tailscale up --accept-routes --advertise-routes=192.168.0.0/16
+# → 출력된 URL 브라우저에서 열어 로그인
+# → Tailscale 어드민에서 Subnet Router 승인
 
-# Subnet Router 라우트 설정
-# --advertise-routes: VPC CIDR(192.168.0.0/16)을 Tailscale 망에 광고
-#   → DMS가 온프레미스 Tailscale IP로 라우팅 가능
-# 이미 연결된 경우에도 항상 실행해서 라우트 누락 방지
-- name: Tailscale Subnet Router 라우트 설정
-  shell: tailscale set --advertise-routes=192.168.0.0/16 --accept-routes
-  changed_when: false
+########################################
+# Tailscale 연결 감지 후 자동 복제 시작
+########################################
+
+# 복제 시작 스크립트 설치
+# Tailscale 연결 확인 → NFS 마운트 → rsync cron → DMS task 시작
+- name: start-replication.sh 설치
+  copy:
+    dest: /usr/local/bin/start-replication.sh
+    mode: "0755"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      FLAG=/var/lib/replication-started
+      REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+      LOG=/var/log/start-replication.log
+
+      log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG"; }
+
+      # ── Tailscale 연결 확인 ──────────────────────────────────────────
+      TS_IP=$(tailscale ip -4 2>/dev/null || true)
+      if [[ ! "$TS_IP" =~ ^100\. ]]; then
+        log "Tailscale 미연결 (IP: ${TS_IP:-none}). 종료."
+        exit 1
+      fi
+      log "Tailscale 연결 확인: $TS_IP"
+
+      # ── 패키지 설치 ─────────────────────────────────────────────────
+      log "[1/4] nfs-common, rsync 설치"
+      apt-get update -qq && apt-get install -y nfs-common rsync >> "$LOG" 2>&1
+
+      # ── EFS ID / DNS 동적 조회 ───────────────────────────────────────
+      log "[2/4] EFS 마운트"
+      EFS_ID=$(aws efs describe-file-systems \
+        --region "$REGION" \
+        --query "FileSystems[?Tags[?Key=='Project'&&Value=='hybrid-dr']].FileSystemId" \
+        --output text)
+      EFS_DNS="${EFS_ID}.efs.${REGION}.amazonaws.com"
+
+      NFS_IP="{{ onprem_nfs_ip }}"
+      NFS_PATH="{{ onprem_nfs_path }}"
+
+      mkdir -p /mnt/efs /mnt/onprem-nfs
+
+      grep -q "$EFS_DNS" /etc/fstab || \
+        echo "$EFS_DNS:/ /mnt/efs nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,_netdev 0 0" >> /etc/fstab
+      grep -q "${NFS_IP}:${NFS_PATH}" /etc/fstab || \
+        echo "${NFS_IP}:${NFS_PATH} /mnt/onprem-nfs nfs defaults,_netdev 0 0" >> /etc/fstab
+
+      mount -a 2>&1 | tee -a "$LOG" || true
+      mount | grep -E 'efs|onprem-nfs' | tee -a "$LOG"
+
+      # ── rsync cron 등록 (매시간) ─────────────────────────────────────
+      log "[3/4] rsync cron 등록"
+      echo "0 * * * * root rsync -av --delete /mnt/onprem-nfs/ /mnt/efs/ >> /var/log/nfs-sync.log 2>&1" \
+        > /etc/cron.d/nfs-sync
+      chmod 644 /etc/cron.d/nfs-sync
+
+      # ── DMS task 시작 ────────────────────────────────────────────────
+      log "[4/4] DMS task 시작"
+      TASK_ARN=$(aws dms describe-replication-tasks \
+        --region "$REGION" \
+        --filters Name=replication-task-id,Values=hybrid-dr-cdc-task \
+        --query "ReplicationTasks[0].ReplicationTaskArn" \
+        --output text)
+
+      if [ "$TASK_ARN" = "None" ] || [ -z "$TASK_ARN" ]; then
+        log "DMS task ARN을 찾을 수 없음. 건너뜀."
+      else
+        aws dms start-replication-task \
+          --region "$REGION" \
+          --replication-task-arn "$TASK_ARN" \
+          --start-replication-task-type start-replication >> "$LOG" 2>&1 || \
+          log "DMS task 시작 실패 (이미 실행 중일 수 있음)"
+        log "DMS task 시작 요청 완료: $TASK_ARN"
+      fi
+
+      # ── 완료 flag ────────────────────────────────────────────────────
+      touch "$FLAG"
+      log "=== 복제 셋업 완료 ==="
+
+# Tailscale 연결 감지 → start-replication.sh 자동 실행 서비스
+- name: replication-start.service 설치
+  copy:
+    dest: /etc/systemd/system/replication-start.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Tailscale 연결 감지 후 자동 복제 시작
+      After=network-online.target tailscaled.service
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/bin/bash -c '
+        FLAG=/var/lib/replication-started
+        if [ -f "$FLAG" ]; then
+          echo "이미 복제 설정 완료 (flag: $FLAG). 스킵."
+          exit 0
+        fi
+        echo "Tailscale 연결 대기 중..."
+        while true; do
+          TS_IP=$(tailscale ip -4 2>/dev/null || true)
+          if [[ "$TS_IP" =~ ^100\. ]]; then
+            echo "Tailscale 연결 확인: $TS_IP"
+            /usr/local/bin/start-replication.sh
+            exit 0
+          fi
+          echo "Tailscale 미연결. 30초 후 재시도..."
+          sleep 30
+        done
+      '
+      StandardOutput=journal
+      StandardError=journal
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: replication-start.service 활성화 및 시작
+  systemd:
+    name: replication-start
+    daemon_reload: yes
+    enabled: yes
+    state: started

@@ -53,12 +53,21 @@ jobs:
             --role-name hybrid-dr-aws-lbc \
             --query 'Role.Arn' --output text)" >> $GITHUB_OUTPUT
 
+          echo "karpenter_node_profile=$(aws iam get-instance-profile \
+            --instance-profile-name hybrid-dr-karpenter-node-profile \
+            --query 'InstanceProfile.InstanceProfileName' --output text)" >> $GITHUB_OUTPUT
+
       - name: Karpenter Helm values 치환
         run: |
           sed -i "s|__CLUSTER_ENDPOINT__|${{ steps.tf_output.outputs.cluster_endpoint }}|g" \
             k8s/karpenter/helm-values.yaml
           sed -i "s|__KARPENTER_ROLE_ARN__|${{ steps.tf_output.outputs.karpenter_role_arn }}|g" \
             k8s/karpenter/helm-values.yaml
+
+      - name: Karpenter NodeClass 치환
+        run: |
+          sed -i "s|__KARPENTER_NODE_PROFILE__|${{ steps.tf_output.outputs.karpenter_node_profile }}|g" \
+            k8s/karpenter/nodeclass.yaml
 
       - name: AWS LBC Helm values 치환
         run: |
@@ -121,3 +130,20 @@ jobs:
           kubectl rollout status deployment/app --timeout=3m
           kubectl get pods -A
           kubectl get ingress
+
+      - name: Ansible 의존성 설치
+        run: pip install ansible boto3 botocore
+
+      - name: SSH 키 설정
+        run: |
+          echo "${{ secrets.ANSIBLE_SSH_KEY }}" > /tmp/monitoring-key.pem
+          chmod 600 /tmp/monitoring-key.pem
+
+      - name: Monitoring EC2 설정 (Ansible)
+        run: |
+          ansible-playbook \
+            -i ansible/inventory/inventory.aws_ec2.yml \
+            ansible/playbooks/setup-monitoring.yml \
+            --private-key /tmp/monitoring-key.pem \
+            -e onprem_nfs_ip=${{ secrets.ONPREM_NFS_IP }} \
+            -e onprem_nfs_path=${{ secrets.ONPREM_NFS_PATH }}

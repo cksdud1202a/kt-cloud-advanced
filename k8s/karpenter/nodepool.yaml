@@ -5,7 +5,6 @@ metadata:
 spec:
   template:
     metadata:
-      # Worker Node 라벨 (node_exporter DaemonSet nodeSelector용)
       labels:
         role: worker
     spec:

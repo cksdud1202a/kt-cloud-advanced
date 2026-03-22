@@ -10,7 +10,7 @@ metadata:
   name: hybrid-dr-ingress
   namespace: default
   annotations:
-    # Terraform이 생성한 기존 ALB에 붙임 (새 ALB 생성 안 함)
+    # LBC가 이 Ingress를 감지해서 hybrid-dr-alb라는 이름으로 ALB를 신규 생성
     alb.ingress.kubernetes.io/load-balancer-name: hybrid-dr-alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     # instance 모드: ALB → Worker Node NodePort로 트래픽 전달

@@ -28,7 +28,7 @@ output "eks_oidc_provider_arn" {
   value       = aws_iam_openid_connect_provider.eks.arn
 }
 
-# arpenter Helm values에 필요
+# Karpenter Helm values에 필요
 output "karpenter_controller_role_arn" {
   description = "Karpenter Controller IAM Role ARN"
   value       = aws_iam_role.karpenter_controller.arn

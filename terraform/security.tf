@@ -165,17 +165,6 @@ resource "aws_security_group" "monitoring" {
   tags = { Name = "${var.project_name}-monitoring-sg" }
 }
 
-# 9100: Prometheus(Monitoring EC2) → Worker Node node_exporter
-# DR 시나리오에서 온프레미스 vs AWS 메트릭 비교용
-resource "aws_security_group_rule" "worker_from_monitoring_9100" {
-  type                     = "ingress"
-  from_port                = 9100
-  to_port                  = 9100
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.monitoring.id
-  security_group_id        = aws_security_group.worker_node.id
-  description              = "node_exporter scrape from Monitoring EC2"
-}
 
 # DR RDS Security Group
 resource "aws_security_group" "rds" {
@@ -208,6 +197,33 @@ resource "aws_security_group" "rds" {
   tags = { Name = "${var.project_name}-rds-sg" }
 }
 
+# DMS Security Group
+# DMS 전용 SG — RDS SG와 분리하여 역할 명확화
+# DMS는 인바운드 필요 없음 (DMS가 먼저 연결 시도)
+# 아웃바운드: 온프레미스 MySQL(Tailscale) + DR RDS(VPC 내부) 접근
+resource "aws_security_group" "dms" {
+  name   = "${var.project_name}-dms-sg"
+  vpc_id = aws_vpc.main.id
+
+  egress {
+    description = "DMS to on-premises MySQL via Tailscale"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    cidr_blocks = ["100.64.0.0/10"]
+  }
+
+  egress {
+    description = "DMS to DR RDS via VPC"
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    cidr_blocks = ["192.168.0.0/16"]
+  }
+
+  tags = { Name = "${var.project_name}-dms-sg" }
+}
+
 # ALB Security Group
 resource "aws_security_group" "alb" {
   name   = "${var.project_name}-alb-sg"
@@ -217,14 +233,6 @@ resource "aws_security_group" "alb" {
     description = "HTTP"
     from_port   = 80
     to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
