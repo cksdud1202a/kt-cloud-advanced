@@ -140,11 +140,11 @@ resource "aws_security_group" "monitoring" {
   }
 
   ingress {
-    description = "SSH via Tailscale"
+    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["100.64.0.0/10"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
