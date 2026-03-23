@@ -65,8 +65,8 @@
       log "Tailscale 연결 확인: $TS_IP"
 
       # ── 패키지 설치 ─────────────────────────────────────────────────
-      log "[1/4] nfs-common, rsync, awscli 설치"
-      apt-get update -qq && apt-get install -y nfs-common rsync awscli >> "$LOG" 2>&1
+      log "[1/4] nfs-common, rsync, awscli, inotify-tools 설치"
+      apt-get update -qq && apt-get install -y nfs-common rsync awscli inotify-tools >> "$LOG" 2>&1
 
       # ── EFS DNS (Ansible 배포 시 주입) ──────────────────────────────
       log "[2/4] EFS 마운트"
@@ -85,11 +85,41 @@
       mount -a 2>&1 | tee -a "$LOG" || true
       mount | grep -E 'efs|onprem-nfs' | tee -a "$LOG"
 
-      # ── rsync cron 등록 (매시간) ─────────────────────────────────────
-      log "[3/4] rsync cron 등록"
-      echo "0 * * * * root rsync -av --delete /mnt/onprem-nfs/ /mnt/efs/ >> /var/log/nfs-sync.log 2>&1" \
-        > /etc/cron.d/nfs-sync
-      chmod 644 /etc/cron.d/nfs-sync
+      # ── inotifywait 실시간 동기화 서비스 등록 ────────────────────────
+      log "[3/4] inotifywait 실시간 동기화 서비스 등록"
+
+      cat > /usr/local/bin/nfs-sync.sh << 'SYNC_EOF'
+      #!/bin/bash
+      LOG=/var/log/nfs-sync.log
+      log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
+      log "nfs-sync 서비스 시작"
+      while inotifywait -r -e modify,create,delete,move /mnt/onprem-nfs 2>/dev/null; do
+        log "변경 감지 → rsync 실행"
+        rsync -av --delete /mnt/onprem-nfs/ /mnt/efs/ >> "$LOG" 2>&1
+      done
+      SYNC_EOF
+      chmod 755 /usr/local/bin/nfs-sync.sh
+
+      cat > /etc/systemd/system/nfs-sync.service << 'SVC_EOF'
+      [Unit]
+      Description=inotifywait 기반 NFS→EFS 실시간 동기화
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/local/bin/nfs-sync.sh
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+      SVC_EOF
+
+      systemctl daemon-reload
+      systemctl enable nfs-sync
+      systemctl restart nfs-sync
+      log "nfs-sync 서비스 등록 완료"
 
       # ── DMS task 시작 ────────────────────────────────────────────────
       log "[4/4] DMS task 시작"
