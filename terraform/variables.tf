@@ -77,7 +77,7 @@ variable "cloudflare_tunnel_domain" {
 # DataSync Agent가 이 IP로 NFS 마운트 (Tailscale VPN 경유)
 variable "onprem_nfs_ip" {
   description = "온프레미스 NFS 서버 IP"
-  default     = "192.168.56.12"
+  default     = "192.168.56.11"
 }
 
 variable "onprem_nfs_path" {

@@ -155,6 +155,15 @@ resource "aws_security_group" "monitoring" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # DMS → 모니터링 EC2 socat 프록시 (DMS가 직접 온프레미스 MySQL에 접근 불가하여 EC2 경유)
+  ingress {
+    description     = "MySQL proxy from DMS"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.dms.id]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0

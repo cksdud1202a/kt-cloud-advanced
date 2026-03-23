@@ -63,8 +63,10 @@ resource "aws_dms_endpoint" "source" {
   endpoint_type = "source"
   engine_name   = "mysql"
 
-  server_name = var.onprem_mysql_ip  # Tailscale IP (100.95.153.108)
-  port        = 30306                # K8s NodePort (mysql-service NodePort)
+  # 모니터링 EC2의 socat 프록시 경유 (EC2:3306 → 온프레미스 MySQL:30306)
+  # DMS SG는 Tailscale IP(100.x.x.x)로 직접 연결 불가 → EC2 프록시 사용
+  server_name = aws_instance.monitoring.private_ip
+  port        = 3306
   username    = "root"
   password    = var.onprem_mysql_password
 

@@ -65,16 +65,12 @@
       log "Tailscale 연결 확인: $TS_IP"
 
       # ── 패키지 설치 ─────────────────────────────────────────────────
-      log "[1/4] nfs-common, rsync 설치"
-      apt-get update -qq && apt-get install -y nfs-common rsync >> "$LOG" 2>&1
+      log "[1/4] nfs-common, rsync, awscli 설치"
+      apt-get update -qq && apt-get install -y nfs-common rsync awscli >> "$LOG" 2>&1
 
-      # ── EFS ID / DNS 동적 조회 ───────────────────────────────────────
+      # ── EFS DNS (Ansible 배포 시 주입) ──────────────────────────────
       log "[2/4] EFS 마운트"
-      EFS_ID=$(aws efs describe-file-systems \
-        --region "$REGION" \
-        --query "FileSystems[?Tags[?Key=='Project'&&Value=='hybrid-dr']].FileSystemId" \
-        --output text)
-      EFS_DNS="${EFS_ID}.efs.${REGION}.amazonaws.com"
+      EFS_DNS="{{ efs_id }}.efs.${REGION}.amazonaws.com"
 
       NFS_IP="{{ onprem_nfs_ip }}"
       NFS_PATH="{{ onprem_nfs_path }}"
@@ -166,6 +162,43 @@
 - name: replication-start.service 활성화 및 시작
   systemd:
     name: replication-start
+    daemon_reload: yes
+    enabled: yes
+    state: started
+
+#########################################
+# socat MySQL 프록시 (DMS → 온프레미스 MySQL)
+#########################################
+
+# DMS가 Tailscale IP로 직접 연결 불가 → 모니터링 EC2 경유
+# EC2:3306 → 온프레미스 NodePort(30306)로 포워딩
+- name: socat 설치
+  apt:
+    name: socat
+    state: present
+
+- name: mysql-proxy.service 설치
+  copy:
+    dest: /etc/systemd/system/mysql-proxy.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=MySQL TCP proxy (DMS → 온프레미스 MySQL)
+      After=network-online.target tailscaled.service
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/bin/socat TCP-LISTEN:3306,fork,reuseaddr TCP:{{ onprem_mysql_ip }}:{{ onprem_mysql_port | default('30306') }}
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: mysql-proxy.service 활성화 및 시작
+  systemd:
+    name: mysql-proxy
     daemon_reload: yes
     enabled: yes
     state: started

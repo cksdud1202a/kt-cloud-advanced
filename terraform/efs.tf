@@ -43,6 +43,13 @@ resource "aws_efs_mount_target" "private2" {
   security_groups = [aws_security_group.efs.id]
 }
 
+# 모니터링 EC2(ap-northeast-2c)에서 EFS DNS 조회가 되려면 같은 AZ에 마운트타겟 필요
+resource "aws_efs_mount_target" "public3" {
+  file_system_id  = aws_efs_file_system.main.id
+  subnet_id       = aws_subnet.public3.id
+  security_groups = [aws_security_group.efs.id]
+}
+
 ########################################
 # EFS Security Group
 ########################################
