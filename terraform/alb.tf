@@ -38,10 +38,10 @@ resource "null_resource" "pre_destroy" {
     when    = destroy
     command = <<-EOT
       echo "Deleting Ingress (LBC가 ALB/TG/SG 정리)..."
-      kubectl delete ingress hybrid-dr-ingress --ignore-not-found 2>/dev/null || true
+      timeout 30 kubectl delete ingress hybrid-dr-ingress --ignore-not-found 2>/dev/null || true
 
       echo "ALB 삭제 대기 중..."
-      for i in $(seq 1 24); do
+      for i in $(seq 1 12); do
         ALB_ARN=$(aws elbv2 describe-load-balancers \
           --names "${self.triggers.alb_name}" \
           --query "LoadBalancers[0].LoadBalancerArn" \
@@ -50,7 +50,7 @@ resource "null_resource" "pre_destroy" {
           echo "ALB 삭제 완료."
           break
         fi
-        echo "  대기 중... ($i/24)"
+        echo "  대기 중... ($i/12)"
         sleep 10
       done
     EOT
@@ -60,60 +60,44 @@ resource "null_resource" "pre_destroy" {
 # 2단계: EKS 삭제 후 남은 리소스 정리
 # LBC가 이미 ALB/TG/k8s-SG를 정리했으므로 Karpenter 노드/ENI/eks-cluster-sg만 처리
 resource "null_resource" "cleanup_k8s_resources" {
+  # depends_on에 IGW 추가 → destroy 시 cleanup이 IGW보다 먼저 실행됨
+  # (A depends_on B → destroy 시 A가 B보다 먼저 삭제)
+  # cleanup 스크립트에서 모든 EC2 종료 + IGW 삭제 후 Terraform이 IGW 삭제 시도 → 이미 없으므로 즉시 완료
   depends_on = [
     aws_subnet.public,
     aws_subnet.public2,
+    aws_internet_gateway.igw,
   ]
 
   triggers = {
     vpc_id  = aws_vpc.main.id
+    igw_id  = aws_internet_gateway.igw.id
     region  = var.region
   }
 
   provisioner "local-exec" {
     when    = destroy
     command = <<-EOT
-      # 모니터링 EC2 종료 (공인 IP 해제 → IGW detach 가능)
-      echo "Terminating monitoring EC2..."
-      MONITORING_INSTANCES=$(aws ec2 describe-instances \
+      # VPC 내 모든 EC2 종료 (공인 IP 해제 → IGW detach 가능)
+      # monitoring, worker node, Karpenter node 모두 포함
+      echo "Terminating all EC2 instances in VPC..."
+      ALL_INSTANCES=$(aws ec2 describe-instances \
         --filters \
-          "Name=tag:Role,Values=monitoring" \
           "Name=vpc-id,Values=${self.triggers.vpc_id}" \
           "Name=instance-state-name,Values=running,pending,stopping,stopped" \
         --query "Reservations[*].Instances[*].InstanceId" \
         --output text --region ${self.triggers.region})
-      if [ -n "$MONITORING_INSTANCES" ]; then
-        aws ec2 terminate-instances --instance-ids $MONITORING_INSTANCES --region ${self.triggers.region}
-        aws ec2 wait instance-terminated --instance-ids $MONITORING_INSTANCES --region ${self.triggers.region}
-        echo "  Monitoring EC2 terminated."
+      if [ -n "$ALL_INSTANCES" ]; then
+        echo "  Terminating: $ALL_INSTANCES"
+        aws ec2 terminate-instances --instance-ids $ALL_INSTANCES --region ${self.triggers.region}
+        aws ec2 wait instance-terminated --instance-ids $ALL_INSTANCES --region ${self.triggers.region}
+        echo "  All EC2 instances terminated."
       else
-        echo "  No monitoring EC2 found."
+        echo "  No EC2 instances found."
       fi
 
-      echo "Terminating Karpenter-managed EC2 instances..."
-      KARPENTER_INSTANCES=$(aws ec2 describe-instances \
-        --filters \
-          "Name=tag-key,Values=karpenter.sh/nodepool" \
-          "Name=vpc-id,Values=${self.triggers.vpc_id}" \
-          "Name=instance-state-name,Values=running,pending,stopping,stopped" \
-        --query "Reservations[*].Instances[*].InstanceId" \
-        --output text --region ${self.triggers.region})
-
-      if [ -n "$KARPENTER_INSTANCES" ]; then
-        echo "  Terminating: $KARPENTER_INSTANCES"
-        aws ec2 terminate-instances \
-          --instance-ids $KARPENTER_INSTANCES \
-          --region ${self.triggers.region}
-        aws ec2 wait instance-terminated \
-          --instance-ids $KARPENTER_INSTANCES \
-          --region ${self.triggers.region}
-        echo "  Karpenter instances terminated."
-      else
-        echo "  No Karpenter instances found."
-      fi
-
-      echo "Waiting 30s for ENI/SG dependencies to clear..."
-      sleep 30
+      echo "Waiting 10s for ENI/SG dependencies to clear..."
+      sleep 10
 
       echo "Deleting orphaned ENIs..."
       ORPHAN_ENIS=$(aws ec2 describe-network-interfaces \
@@ -151,11 +135,11 @@ resource "null_resource" "cleanup_k8s_resources" {
       done
 
       # eks-cluster-sg-*: EKS가 자동 생성, EKS 삭제 후에도 잔존
-      # k8s-*: pre_destroy에서 LBC가 이미 삭제했으므로 여기선 처리 불필요
-      echo "Deleting eks-cluster-sg-* SGs..."
+      # k8s-*: LBC가 생성한 SG (k8s-default-*, k8s-traffic-*), ingress 삭제 후에도 잔존하는 경우 있음
+      echo "Deleting eks-cluster-sg-* and k8s-* SGs..."
       EKS_SGS=$(aws ec2 describe-security-groups \
-        --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" "Name=group-name,Values=eks-cluster-sg-*" \
-        --query "SecurityGroups[*].GroupId" \
+        --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" \
+        --query "SecurityGroups[?starts_with(GroupName,'eks-cluster-sg-') || starts_with(GroupName,'k8s-')].GroupId" \
         --output text --region ${self.triggers.region})
       for SG_ID in $EKS_SGS; do
         echo "  Deleting SG: $SG_ID"
@@ -165,6 +149,17 @@ resource "null_resource" "cleanup_k8s_resources" {
           sleep 15
         done
       done
+
+      # IGW 명시적 삭제: 이후 Terraform이 IGW 삭제 시도 시 이미 없으므로 즉시 완료
+      echo "Detaching and deleting IGW..."
+      aws ec2 detach-internet-gateway \
+        --internet-gateway-id ${self.triggers.igw_id} \
+        --vpc-id ${self.triggers.vpc_id} \
+        --region ${self.triggers.region} 2>/dev/null || true
+      aws ec2 delete-internet-gateway \
+        --internet-gateway-id ${self.triggers.igw_id} \
+        --region ${self.triggers.region} 2>/dev/null || true
+      echo "IGW 삭제 완료 (또는 이미 삭제됨)"
     EOT
   }
 }
