@@ -12,10 +12,12 @@ spec:
   subnetSelectorTerms:
     - tags:
         karpenter.sh/discovery: hybrid-dr  # 이걸로 변경
-  # Worker Node SG 적용
+  # Worker Node SG + EKS 클러스터 SG (관리형 노드와 통신에 필요)
   securityGroupSelectorTerms:
     - tags:
         Name: hybrid-dr-worker-sg
+    - tags:
+        aws:eks:cluster-name: hybrid-dr-eks
   tags:
     Name: hybrid-dr-karpenter-node 
     Project: hybrid-dr              

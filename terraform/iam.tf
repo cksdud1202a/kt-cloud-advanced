@@ -68,6 +68,11 @@ resource "aws_iam_role_policy_attachment" "eks_ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+resource "aws_iam_role_policy_attachment" "eks_efs_csi" {
+  role       = aws_iam_role.eks_node.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy"
+}
+
 ########################################
 # OIDC Provider
 # IRSA(IAM Roles for Service Accounts) 사용을 위해 필수

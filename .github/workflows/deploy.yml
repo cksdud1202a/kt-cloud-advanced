@@ -57,6 +57,10 @@ jobs:
             --instance-profile-name hybrid-dr-karpenter-node-profile \
             --query 'InstanceProfile.InstanceProfileName' --output text)" >> $GITHUB_OUTPUT
 
+          echo "efs_id=$(aws efs describe-file-systems \
+            --query "FileSystems[?Tags[?Key=='Project'&&Value=='hybrid-dr']].FileSystemId" \
+            --output text)" >> $GITHUB_OUTPUT
+
       - name: Karpenter Helm values 치환
         run: |
           sed -i "s|__CLUSTER_ENDPOINT__|${{ steps.tf_output.outputs.cluster_endpoint }}|g" \
@@ -68,6 +72,11 @@ jobs:
         run: |
           sed -i "s|__KARPENTER_NODE_PROFILE__|${{ steps.tf_output.outputs.karpenter_node_profile }}|g" \
             k8s/karpenter/nodeclass.yaml
+
+      - name: EFS PV 치환
+        run: |
+          sed -i "s|__EFS_ID__|${{ steps.tf_output.outputs.efs_id }}|g" \
+            k8s/efs/pv.yaml
 
       - name: AWS LBC Helm values 치환
         run: |
@@ -117,6 +126,27 @@ jobs:
             --namespace kube-system \
             --values k8s/metrics-server/helm-values.yaml \
             --wait --timeout 3m
+
+      - name: EFS CSI Driver 설치
+        run: |
+          aws eks create-addon \
+            --cluster-name ${{ env.CLUSTER_NAME }} \
+            --addon-name aws-efs-csi-driver \
+            --region ${{ env.AWS_REGION }} 2>/dev/null || \
+          aws eks update-addon \
+            --cluster-name ${{ env.CLUSTER_NAME }} \
+            --addon-name aws-efs-csi-driver \
+            --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          aws eks wait addon-active \
+            --cluster-name ${{ env.CLUSTER_NAME }} \
+            --addon-name aws-efs-csi-driver \
+            --region ${{ env.AWS_REGION }}
+
+      - name: EFS StorageClass/PV/PVC 적용
+        run: |
+          kubectl apply -f k8s/efs/storageclass.yaml
+          kubectl apply -f k8s/efs/pv.yaml
+          kubectl apply -f k8s/efs/pvc.yaml
 
       - name: 애플리케이션 매니페스트 적용
         run: |

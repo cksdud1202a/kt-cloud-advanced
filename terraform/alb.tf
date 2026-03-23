@@ -44,13 +44,21 @@ resource "null_resource" "cleanup_k8s_resources" {
         echo "ALB not found, skipping."
       fi
 
-      # K8s가 생성한 보안그룹 삭제 (이름이 k8s- 로 시작하는 것)
+      # ALB 삭제 후 SG 의존성 해제 대기
+      echo "Waiting 30s for SG dependencies to clear..."
+      sleep 30
+
+      # K8s가 생성한 보안그룹 삭제 (이름이 k8s- 로 시작하는 것) — 최대 5회 재시도
       for SG_ID in $(aws ec2 describe-security-groups \
         --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" "Name=group-name,Values=k8s-*" \
         --query "SecurityGroups[*].GroupId" \
         --output text --region ${self.triggers.region}); do
         echo "Deleting SG: $SG_ID"
-        aws ec2 delete-security-group --group-id "$SG_ID" --region ${self.triggers.region}
+        for i in 1 2 3 4 5; do
+          aws ec2 delete-security-group --group-id "$SG_ID" --region ${self.triggers.region} && break
+          echo "  Attempt $i failed, retrying in 15s..."
+          sleep 15
+        done
       done
     EOT
   }
