@@ -38,12 +38,14 @@ variable "key_name" {
 # 실행 시 직접 입력하거나 terraform.tfvars에 저장
 variable "db_password" {
   description = "RDS master password"
-  sensitive   = true  # terraform plan/apply 출력에서 값 숨김
+  default     = "password123!"
+  sensitive   = true
 }
 
-# 온프레미스 MySQL 복제 전용 계정 비밀번호 (repl_user)
-variable "onprem_repl_password" {
-  description = "온프레미스 MySQL 복제 전용 계정(repl_user) 비밀번호"
+# 온프레미스 MySQL root 비밀번호 (DMS 소스 접속용)
+variable "onprem_mysql_password" {
+  description = "온프레미스 MySQL root 비밀번호"
+  default     = "password123!"
   sensitive   = true
 }
 
@@ -52,6 +54,7 @@ variable "onprem_repl_password" {
 # DMS가 이 IP로 소스 MySQL에 접속해서 CDC 복제함
 variable "onprem_mysql_ip" {
   description = "온프레미스 MySQL Tailscale IP"
+  default     = "100.95.153.108"
 }
 
 # Route53에 등록할 도메인 이름
@@ -65,20 +68,21 @@ variable "domain_name" {
 # Route53 Primary 레코드가 이 도메인으로 트래픽 보냄
 # 온프레미스가 살아있을 때 여기로 연결됨
 variable "cloudflare_tunnel_domain" {
-  description = "온프레미스 Cloudflare Tunnel 도메인"
+  description = "온프레미스 Cloudflare Tunnel 도메인 (없으면 Route53 Primary 레코드 생성 안 함)"
+  default     = ""
 }
 
 
 # 온프레미스 NFS 서버 Tailscale IP
 # DataSync Agent가 이 IP로 NFS 마운트 (Tailscale VPN 경유)
 variable "onprem_nfs_ip" {
-  description = "온프레미스 NFS 서버 Tailscale IP"
+  description = "온프레미스 NFS 서버 IP"
+  default     = "192.168.56.12"
 }
 
-# 온프레미스 NFS export 경로
 variable "onprem_nfs_path" {
   description = "온프레미스 NFS export 경로"
-  default     = "/data"
+  default     = "/nfs_shared/mysql"
 }
 
 # LBC가 생성한 ALB의 DNS 이름

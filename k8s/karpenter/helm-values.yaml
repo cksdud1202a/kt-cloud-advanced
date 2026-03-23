@@ -1,6 +1,8 @@
 # Karpenter Helm 설치 설정값
 # terraform output에서 가져온 값들 사용
 
+replicas: 1
+
 controller:
   env:
     - name: AWS_REGION

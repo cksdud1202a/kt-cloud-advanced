@@ -176,4 +176,5 @@ jobs:
             ansible/playbooks/setup-monitoring.yml \
             --private-key /tmp/monitoring-key.pem \
             -e onprem_nfs_ip=${{ secrets.ONPREM_NFS_IP }} \
-            -e onprem_nfs_path=${{ secrets.ONPREM_NFS_PATH }}
+            -e onprem_nfs_path=${{ secrets.ONPREM_NFS_PATH }} \
+            -e tailscale_auth_key=${{ secrets.TAILSCALE_AUTH_KEY }}

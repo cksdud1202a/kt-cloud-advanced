@@ -63,10 +63,10 @@ resource "aws_dms_endpoint" "source" {
   endpoint_type = "source"
   engine_name   = "mysql"
 
-  server_name = var.onprem_mysql_ip  # Tailscale IP
-  port        = 3306
-  username    = "repl_user"          # 복제 전용 계정
-  password    = var.onprem_repl_password
+  server_name = var.onprem_mysql_ip  # Tailscale IP (100.95.153.108)
+  port        = 30306                # K8s NodePort (mysql-service NodePort)
+  username    = "root"
+  password    = var.onprem_mysql_password
 
   tags = {
     Name    = "${var.project_name}-source-mysql"
@@ -127,5 +127,50 @@ resource "aws_dms_replication_task" "cdc" {
   tags = {
     Name    = "${var.project_name}-cdc-task"
     Project = var.project_name
+  }
+
+  # running 상태의 task는 AWS API가 삭제를 거부함
+  # Terraform provider가 자동 stop을 안 하므로 destroy 전에 직접 중지
+  # aws_dms_replication_task 리소스 자체에 달아서 retry 시에도 반드시 실행됨
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      echo "Stopping DMS replication task..."
+      TASK_ARN=$(aws dms describe-replication-tasks \
+        --filters "Name=replication-task-id,Values=${self.replication_task_id}" \
+        --query "ReplicationTasks[0].ReplicationTaskArn" \
+        --output text --region ap-northeast-2 2>/dev/null)
+
+      if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+        echo "  DMS task not found, skipping."
+        exit 0
+      fi
+
+      STATUS=$(aws dms describe-replication-tasks \
+        --filters "Name=replication-task-id,Values=${self.replication_task_id}" \
+        --query "ReplicationTasks[0].Status" \
+        --output text --region ap-northeast-2 2>/dev/null)
+
+      if [ "$STATUS" != "running" ]; then
+        echo "  DMS task not running (status: $STATUS), skipping."
+        exit 0
+      fi
+
+      echo "  Stopping DMS task: $TASK_ARN"
+      aws dms stop-replication-task \
+        --replication-task-arn "$TASK_ARN" \
+        --region ap-northeast-2 || true
+
+      for i in $(seq 1 18); do
+        STATUS=$(aws dms describe-replication-tasks \
+          --filters "Name=replication-task-id,Values=${self.replication_task_id}" \
+          --query "ReplicationTasks[0].Status" \
+          --output text --region ap-northeast-2 2>/dev/null)
+        [ "$STATUS" = "stopped" ] || [ "$STATUS" = "failed" ] || [ "$STATUS" = "None" ] && break
+        echo "  Waiting for DMS task to stop (status: $STATUS)..."
+        sleep 10
+      done
+      echo "  DMS task stopped."
+    EOT
   }
 }

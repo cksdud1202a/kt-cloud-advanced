@@ -22,10 +22,19 @@
     enabled: yes
     state: started
 
-# Tailscale 연결은 수동으로 진행
-# EC2 접속 후: sudo tailscale up --accept-routes --advertise-routes=192.168.0.0/16
-# → 출력된 URL 브라우저에서 열어 로그인
-# → Tailscale 어드민에서 Subnet Router 승인
+# Auth Key로 자동 연결 (GitHub Secret: TAILSCALE_AUTH_KEY)
+# --advertise-routes : AWS VPC(192.168.0.0/16)를 온프레미스에 광고
+#                     → 온프레미스가 AWS 내부 리소스(RDS, EKS 등)에 접근 가능
+# --accept-routes    : 온프레미스가 광고하는 대역(192.168.56.0/24 등)을 수락
+#                     → 이 EC2가 온프레미스 내부 네트워크에 접근 가능
+- name: Tailscale 자동 연결 (auth key)
+  command: >
+    tailscale up
+    --auth-key={{ tailscale_auth_key }}
+    --advertise-routes=192.168.0.0/16
+    --accept-routes
+  register: tailscale_up_result
+  changed_when: "'already' not in tailscale_up_result.stderr"
 
 #########################################
 # Tailscale 연결 감지 후 자동 복제 시작
