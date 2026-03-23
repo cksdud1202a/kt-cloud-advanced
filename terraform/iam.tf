@@ -612,6 +612,24 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "ec2:DescribeAccountAttributes"
         ]
         Resource = "*"
+      },
+      {
+        # EFS ID 조회 (deploy.yml의 efs_id 출력값 치환용)
+        Effect = "Allow"
+        Action = [
+          "elasticfilesystem:DescribeFileSystems"
+        ]
+        Resource = "*"
+      },
+      {
+        # EFS CSI Driver 애드온 설치/업데이트/상태확인
+        Effect = "Allow"
+        Action = [
+          "eks:CreateAddon",
+          "eks:UpdateAddon",
+          "eks:DescribeAddon"
+        ]
+        Resource = "*"
       }
     ]
   })
