@@ -27,6 +27,14 @@
 #                     → 온프레미스가 AWS 내부 리소스(RDS, EKS 등)에 접근 가능
 # --accept-routes    : 온프레미스가 광고하는 대역(192.168.56.0/24 등)을 수락
 #                     → 이 EC2가 온프레미스 내부 네트워크에 접근 가능
+
+# 이미 연결된 경우 tailscale up 스킵 (재실행 시 불필요한 실패 방지)
+- name: Tailscale 연결 상태 확인
+  command: tailscale ip -4
+  register: ts_check
+  ignore_errors: true
+  changed_when: false
+
 - name: Tailscale 자동 연결 (auth key)
   command: >
     tailscale up
@@ -35,6 +43,7 @@
     --accept-routes
   register: tailscale_up_result
   changed_when: "'already' not in tailscale_up_result.stderr"
+  when: ts_check.rc != 0 or not (ts_check.stdout | regex_search('^100\\.'))
 
 #########################################
 # Tailscale 연결 감지 후 자동 복제 시작
@@ -189,23 +198,31 @@
       [Install]
       WantedBy=multi-user.target
 
-- name: replication-start.service 활성화 및 시작
-  systemd:
-    name: replication-start
-    daemon_reload: yes
-    enabled: yes
-    state: started
-
 #########################################
 # socat MySQL 프록시 (DMS → 온프레미스 MySQL)
 #########################################
 
 # DMS가 Tailscale IP로 직접 연결 불가 → 모니터링 EC2 경유
 # EC2:3306 → 온프레미스 NodePort(30306)로 포워딩
-- name: socat 설치
+# replication-start.service 시작 전에 설치해야 apt lock 충돌 방지
+- name: 필수 패키지 설치
   apt:
-    name: socat
+    name:
+      - socat
+      - mysql-client-core-8.0
+      - nfs-common
+      - rsync
+      - awscli
+      - inotify-tools
     state: present
+    update_cache: yes
+
+- name: replication-start.service 활성화 및 시작
+  systemd:
+    name: replication-start
+    daemon_reload: yes
+    enabled: yes
+    state: started
 
 - name: mysql-proxy.service 설치
   copy:

@@ -19,7 +19,7 @@ spec:
           values: ["on-demand"]  # Spot 제외 (DR 환경 안정성 우선)
         - key: node.kubernetes.io/instance-type
           operator: In
-          values: ["t3.small", "t3.medium"]  # 비용 절감
+          values: ["t3.small"]  # 비용 절감
         - key: topology.kubernetes.io/zone  # AZ 분산 추가
           operator: In
           values: ["ap-northeast-2a", "ap-northeast-2b"]
