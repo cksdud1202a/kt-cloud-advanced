@@ -19,7 +19,7 @@ variable "project_name" {
 # Worker Node EC2 인스턴스 타입
 # Warm Standby라 평시엔 최소 스펙 유지
 variable "worker_instance_type" {
-  default = "t3.medium"
+  default = "t3.small"
 }
 
 # Monitoring EC2 인스턴스 타입
