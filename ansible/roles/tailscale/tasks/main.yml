@@ -102,9 +102,11 @@
       LOG=/var/log/nfs-sync.log
       log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG"; }
       log "nfs-sync 서비스 시작"
-      while inotifywait -r -e modify,create,delete,move /mnt/onprem-nfs 2>/dev/null; do
-        log "변경 감지 → rsync 실행"
+      # inotify는 NFS 마운트에서 동작하지 않으므로 30초 polling으로 대체
+      while true; do
         rsync -av --delete /mnt/onprem-nfs/ /mnt/efs/ >> "$LOG" 2>&1
+        log "rsync 완료"
+        sleep 30
       done
       SYNC_EOF
       chmod 755 /usr/local/bin/nfs-sync.sh
