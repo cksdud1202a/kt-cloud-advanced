@@ -67,6 +67,9 @@ resource "null_resource" "cleanup_k8s_resources" {
     aws_subnet.public,
     aws_subnet.public2,
     aws_internet_gateway.igw,
+    aws_security_group.worker_node,
+    aws_security_group.eks_cluster,
+    aws_security_group.efs,
   ]
 
   triggers = {
@@ -102,20 +105,57 @@ resource "null_resource" "cleanup_k8s_resources" {
       ALL_INSTANCES=$(aws ec2 describe-instances \
         --filters \
           "Name=vpc-id,Values=${self.triggers.vpc_id}" \
-          "Name=instance-state-name,Values=running,pending,stopping,stopped" \
+          "Name=instance-state-name,Values=running,pending,stopping,stopped,shutting-down" \
         --query "Reservations[*].Instances[*].InstanceId" \
         --output text --region ${self.triggers.region})
       if [ -n "$ALL_INSTANCES" ]; then
         echo "  Terminating: $ALL_INSTANCES"
-        aws ec2 terminate-instances --instance-ids $ALL_INSTANCES --region ${self.triggers.region}
+        aws ec2 terminate-instances --instance-ids $ALL_INSTANCES --region ${self.triggers.region} 2>/dev/null || true
         aws ec2 wait instance-terminated --instance-ids $ALL_INSTANCES --region ${self.triggers.region}
         echo "  All EC2 instances terminated."
       else
         echo "  No EC2 instances found."
       fi
 
-      echo "Waiting 10s for ENI/SG dependencies to clear..."
-      sleep 10
+      # node_group이 shutting-down 시작한 EC2까지 모두 terminated될 때까지 대기
+      # (ENI가 해제되어야 SG 삭제 가능)
+      echo "모든 인스턴스 terminated 대기..."
+      for i in $(seq 1 18); do
+        REMAINING=$(aws ec2 describe-instances \
+          --filters \
+            "Name=vpc-id,Values=${self.triggers.vpc_id}" \
+            "Name=instance-state-name,Values=running,pending,stopping,stopped,shutting-down" \
+          --query "Reservations[*].Instances[*].InstanceId" \
+          --output text --region ${self.triggers.region})
+        if [ -z "$REMAINING" ]; then
+          echo "  모든 인스턴스 terminated."
+          break
+        fi
+        echo "  대기 중... ($i/18)"
+        sleep 10
+      done
+
+      # EKS/EC2/ALB/EFS ENI 해제 대기
+      # RDS/DMS ENI만 제외 (해당 리소스가 destroy 완료 전까지 ENI가 남아 있음)
+      # EFS 마운트 타겟 ENI도 포함: Terraform이 병렬로 삭제하므로 해제될 때까지 대기
+      # JMESPath로 Description null 체크 시 에러 발생 가능 → shell grep 사용
+      echo "EKS/ALB/EFS ENI 해제 대기..."
+      for i in $(seq 1 36); do
+        IN_USE_ENIS=$(aws ec2 describe-network-interfaces \
+          --filters \
+            "Name=vpc-id,Values=${self.triggers.vpc_id}" \
+            "Name=status,Values=in-use" \
+          --query "NetworkInterfaces[*].[NetworkInterfaceId,Description]" \
+          --output text --region ${self.triggers.region} 2>/dev/null | \
+          grep -iv "rdsnetwork\|Amazon RDS\|DMSNetworkInterface" | \
+          awk '{print $1}')
+        if [ -z "$IN_USE_ENIS" ]; then
+          echo "  EKS/ALB/EFS ENI 해제됨."
+          break
+        fi
+        echo "  ENI 해제 대기 ($i/36): $IN_USE_ENIS"
+        sleep 10
+      done
 
       echo "Deleting orphaned ENIs..."
       ORPHAN_ENIS=$(aws ec2 describe-network-interfaces \
@@ -135,18 +175,29 @@ resource "null_resource" "cleanup_k8s_resources" {
         --query "SecurityGroups[?GroupName!='default'].GroupId" \
         --output text --region ${self.triggers.region})
 
-      echo "Revoking cross-SG inbound rules..."
+      echo "Revoking cross-SG inbound/outbound rules..."
       for SG_ID in $ALL_SGS; do
         for REF_SG in $ALL_SGS; do
-          RULES=$(aws ec2 describe-security-groups \
+          INBOUND=$(aws ec2 describe-security-groups \
             --group-ids "$SG_ID" \
             --query "SecurityGroups[0].IpPermissions[?UserIdGroupPairs[?GroupId=='$REF_SG']]" \
             --output json --region ${self.triggers.region} 2>/dev/null)
-          if [ -n "$RULES" ] && [ "$RULES" != "[]" ]; then
+          if [ -n "$INBOUND" ] && [ "$INBOUND" != "[]" ]; then
             echo "  Revoking inbound in $SG_ID referencing $REF_SG"
             aws ec2 revoke-security-group-ingress \
               --group-id "$SG_ID" \
-              --ip-permissions "$RULES" \
+              --ip-permissions "$INBOUND" \
+              --region ${self.triggers.region} || true
+          fi
+          OUTBOUND=$(aws ec2 describe-security-groups \
+            --group-ids "$SG_ID" \
+            --query "SecurityGroups[0].IpPermissionsEgress[?UserIdGroupPairs[?GroupId=='$REF_SG']]" \
+            --output json --region ${self.triggers.region} 2>/dev/null)
+          if [ -n "$OUTBOUND" ] && [ "$OUTBOUND" != "[]" ]; then
+            echo "  Revoking outbound in $SG_ID referencing $REF_SG"
+            aws ec2 revoke-security-group-egress \
+              --group-id "$SG_ID" \
+              --ip-permissions "$OUTBOUND" \
               --region ${self.triggers.region} || true
           fi
         done
@@ -163,8 +214,12 @@ resource "null_resource" "cleanup_k8s_resources" {
       for SG_ID in $ALL_NON_DEFAULT_SGS; do
         echo "  Deleting SG: $SG_ID"
         for i in 1 2 3 4 5; do
-          aws ec2 delete-security-group --group-id "$SG_ID" --region ${self.triggers.region} && break
-          echo "  Attempt $i failed, retrying in 15s..."
+          ERR=$(aws ec2 delete-security-group --group-id "$SG_ID" --region ${self.triggers.region} 2>&1) && break
+          if echo "$ERR" | grep -q "InvalidGroup.NotFound"; then
+            echo "  SG already deleted: $SG_ID"
+            break
+          fi
+          echo "  Attempt $i failed, retrying in 15s... ($ERR)"
           sleep 15
         done
       done
