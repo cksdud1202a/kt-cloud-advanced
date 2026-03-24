@@ -143,6 +143,73 @@
       if [ "$TASK_ARN" = "None" ] || [ -z "$TASK_ARN" ]; then
         log "DMS task ARN을 찾을 수 없음. 건너뜀."
       else
+        # DMS 리플리케이션 인스턴스 ARN 조회
+        INSTANCE_ARN=$(aws dms describe-replication-instances \
+          --region "$REGION" \
+          --filters Name=replication-instance-id,Values=hybrid-dr-dms-instance \
+          --query "ReplicationInstances[0].ReplicationInstanceArn" \
+          --output text)
+
+        # 소스/타겟 엔드포인트 ARN 조회
+        SOURCE_ARN=$(aws dms describe-endpoints \
+          --region "$REGION" \
+          --filters Name=endpoint-id,Values=hybrid-dr-source-mysql \
+          --query "Endpoints[0].EndpointArn" \
+          --output text)
+
+        TARGET_ARN=$(aws dms describe-endpoints \
+          --region "$REGION" \
+          --filters Name=endpoint-id,Values=hybrid-dr-target-rds \
+          --query "Endpoints[0].EndpointArn" \
+          --output text)
+
+        # 연결 테스트 실행 (이미 successful이면 재실행해도 무방)
+        log "DMS 소스 엔드포인트 연결 테스트 시작..."
+        aws dms test-connection \
+          --region "$REGION" \
+          --replication-instance-arn "$INSTANCE_ARN" \
+          --endpoint-arn "$SOURCE_ARN" >> "$LOG" 2>&1 || true
+
+        log "DMS 타겟 엔드포인트 연결 테스트 시작..."
+        aws dms test-connection \
+          --region "$REGION" \
+          --replication-instance-arn "$INSTANCE_ARN" \
+          --endpoint-arn "$TARGET_ARN" >> "$LOG" 2>&1 || true
+
+        # 소스 연결 테스트 성공 대기 (최대 10분)
+        log "소스 엔드포인트 연결 테스트 완료 대기 중..."
+        for i in $(seq 1 60); do
+          SRC_STATUS=$(aws dms describe-connections \
+            --region "$REGION" \
+            --filters Name=endpoint-arn,Values="$SOURCE_ARN" \
+            --query "Connections[?ReplicationInstanceArn=='$INSTANCE_ARN'].Status" \
+            --output text 2>/dev/null || echo "unknown")
+          log "  소스 연결 상태: $SRC_STATUS (${i}/60)"
+          [ "$SRC_STATUS" = "successful" ] && break
+          if [ "$SRC_STATUS" = "failed" ]; then
+            log "소스 엔드포인트 연결 테스트 실패. DMS task 시작 불가."
+            exit 1
+          fi
+          sleep 10
+        done
+
+        # 타겟 연결 테스트 성공 대기 (최대 10분)
+        log "타겟 엔드포인트 연결 테스트 완료 대기 중..."
+        for i in $(seq 1 60); do
+          TGT_STATUS=$(aws dms describe-connections \
+            --region "$REGION" \
+            --filters Name=endpoint-arn,Values="$TARGET_ARN" \
+            --query "Connections[?ReplicationInstanceArn=='$INSTANCE_ARN'].Status" \
+            --output text 2>/dev/null || echo "unknown")
+          log "  타겟 연결 상태: $TGT_STATUS (${i}/60)"
+          [ "$TGT_STATUS" = "successful" ] && break
+          if [ "$TGT_STATUS" = "failed" ]; then
+            log "타겟 엔드포인트 연결 테스트 실패. DMS task 시작 불가."
+            exit 1
+          fi
+          sleep 10
+        done
+
         aws dms start-replication-task \
           --region "$REGION" \
           --replication-task-arn "$TASK_ARN" \
