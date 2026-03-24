@@ -1,4 +1,4 @@
-#######################################
+######################################
 # ALB (Application Load Balancer)
 # aws_lb.main 리소스는 제거됨.
 # ALB 전체 라이프사이클(생성·리스너·타겟그룹·삭제)은
@@ -7,7 +7,7 @@
 # terraform이 ALB를 미리 생성하면 DuplicateLoadBalancerName 충돌 발생.
 ######################################
 
-#######################################
+######################################
 # Destroy-time cleanup
 #
 # 실행 순서 (depends_on 역방향):
@@ -70,14 +70,32 @@ resource "null_resource" "cleanup_k8s_resources" {
   ]
 
   triggers = {
-    vpc_id  = aws_vpc.main.id
-    igw_id  = aws_internet_gateway.igw.id
-    region  = var.region
+    vpc_id   = aws_vpc.main.id
+    igw_id   = aws_internet_gateway.igw.id
+    region   = var.region
+    alb_name = "${var.project_name}-alb"
   }
 
   provisioner "local-exec" {
     when    = destroy
     command = <<-EOT
+      # ALB 직접 삭제 (pre_destroy에서 못 지운 경우 대비)
+      # LBC가 생성한 ENI가 공인IP를 보유 → IGW detach 불가 원인
+      echo "ALB 직접 삭제 확인..."
+      ALB_ARN=$(aws elbv2 describe-load-balancers \
+        --names "${self.triggers.alb_name}" \
+        --query "LoadBalancers[0].LoadBalancerArn" \
+        --output text --region ${self.triggers.region} 2>/dev/null)
+      if [ -n "$ALB_ARN" ] && [ "$ALB_ARN" != "None" ]; then
+        echo "  ALB 발견: $ALB_ARN → 삭제"
+        aws elbv2 delete-load-balancer --load-balancer-arn "$ALB_ARN" \
+          --region ${self.triggers.region}
+        echo "  ALB 삭제 요청 완료, ENI 해제 대기 (60s)..."
+        sleep 60
+      else
+        echo "  ALB 없음. 건너뜀."
+      fi
+
       # VPC 내 모든 EC2 종료 (공인 IP 해제 → IGW detach 가능)
       # monitoring, worker node, Karpenter node 모두 포함
       echo "Terminating all EC2 instances in VPC..."
