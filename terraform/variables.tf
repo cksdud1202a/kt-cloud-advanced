@@ -82,7 +82,7 @@ variable "onprem_nfs_ip" {
 
 variable "onprem_nfs_path" {
   description = "온프레미스 NFS export 경로"
-  default     = "/nfs_shared"
+  default     = "/nfs_shared/mysql"
 }
 
 # LBC가 생성한 ALB의 DNS 이름

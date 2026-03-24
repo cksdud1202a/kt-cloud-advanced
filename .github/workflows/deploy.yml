@@ -176,7 +176,7 @@ jobs:
             ansible/playbooks/setup-monitoring.yml \
             --private-key /tmp/monitoring-key.pem \
             -e onprem_nfs_ip=${{ secrets.ONPREM_NFS_IP }} \
-            -e onprem_nfs_path=/nfs_shared \
+            -e onprem_nfs_path=/nfs_shared/mysql \
             -e tailscale_auth_key=${{ secrets.TAILSCALE_AUTH_KEY }} \
             -e efs_id=${{ steps.tf_output.outputs.efs_id }} \
             -e onprem_mysql_ip=${{ secrets.ONPREM_MYSQL_IP }}
