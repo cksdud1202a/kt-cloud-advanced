@@ -1,13 +1,13 @@
-######################################
+#####################################
 # ALB (Application Load Balancer)
 # aws_lb.main 리소스는 제거됨.
 # ALB 전체 라이프사이클(생성·리스너·타겟그룹·삭제)은
 # AWS Load Balancer Controller(LBC)가 k8s/aws-lbc/ingress.yaml의
 # Ingress 어노테이션을 통해 단독 관리함.
 # terraform이 ALB를 미리 생성하면 DuplicateLoadBalancerName 충돌 발생.
-######################################
+#####################################
 
-######################################
+#####################################
 # Destroy-time cleanup
 #
 # 실행 순서 (depends_on 역방향):
@@ -154,12 +154,13 @@ resource "null_resource" "cleanup_k8s_resources" {
 
       # eks-cluster-sg-*: EKS가 자동 생성, EKS 삭제 후에도 잔존
       # k8s-*: LBC가 생성한 SG (k8s-default-*, k8s-traffic-*), ingress 삭제 후에도 잔존하는 경우 있음
-      echo "Deleting eks-cluster-sg-* and k8s-* SGs..."
-      EKS_SGS=$(aws ec2 describe-security-groups \
+      # 그 외 non-default SG: Terraform이 병렬로 삭제 시도하다 ENI 참조로 막히는 경우 대비
+      echo "Deleting all non-default SGs in VPC..."
+      ALL_NON_DEFAULT_SGS=$(aws ec2 describe-security-groups \
         --filters "Name=vpc-id,Values=${self.triggers.vpc_id}" \
-        --query "SecurityGroups[?starts_with(GroupName,'eks-cluster-sg-') || starts_with(GroupName,'k8s-')].GroupId" \
+        --query "SecurityGroups[?GroupName!='default'].GroupId" \
         --output text --region ${self.triggers.region})
-      for SG_ID in $EKS_SGS; do
+      for SG_ID in $ALL_NON_DEFAULT_SGS; do
         echo "  Deleting SG: $SG_ID"
         for i in 1 2 3 4 5; do
           aws ec2 delete-security-group --group-id "$SG_ID" --region ${self.triggers.region} && break
