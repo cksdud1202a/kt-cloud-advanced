@@ -639,7 +639,9 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "dms:DescribeReplicationInstances",
           "dms:DescribeReplicationTasks",
           "dms:DescribeEndpoints",
-          "dms:StartReplicationTask"
+          "dms:StartReplicationTask",
+          "dms:DescribeConnections",
+          "dms:TestConnection"
         ]
         Resource = "*"
       }
