@@ -33,9 +33,9 @@ resource "aws_route53_zone" "main" {
 # }
 
 
-#######################################
+########################################
 # Route 53 Failover Records
-#######################################
+########################################
 
 # cloudflare_tunnel_domain 준비되면 주석 해제
 # resource "aws_route53_record" "primary" {
