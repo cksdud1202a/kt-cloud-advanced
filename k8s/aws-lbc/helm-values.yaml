@@ -6,6 +6,8 @@
 #     --namespace kube-system \
 #     --values k8s/aws-lbc/helm-values.yaml
 
+replicaCount: 1
+
 clusterName: hybrid-dr-eks
 region: ap-northeast-2
 vpcId: __VPC_ID__  # terraform output으로 확인 후 입력
