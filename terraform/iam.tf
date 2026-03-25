@@ -638,6 +638,7 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         Action = [
           "dms:DescribeReplicationInstances",
           "dms:DescribeReplicationTasks",
+          "dms:DescribeEndpoints",
           "dms:StartReplicationTask"
         ]
         Resource = "*"
