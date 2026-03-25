@@ -90,3 +90,9 @@ output "backup_bucket_name" {
   description = "백업용 S3 버킷 이름"
   value       = aws_s3_bucket.backup.bucket
 }
+
+# GitHub Actions 시크릿 AWS_DEPLOY_ROLE_ARN 값
+output "github_actions_deploy_role_arn" {
+  description = "GitHub Actions 배포 Role ARN (시크릿 AWS_DEPLOY_ROLE_ARN에 입력)"
+  value       = aws_iam_role.github_actions_deploy.arn
+}
