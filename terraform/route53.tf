@@ -4,7 +4,7 @@
 
 # 테스트용 임시 도메인
 resource "aws_route53_zone" "main" {
-  name = var.domain_name # variables.tf에서 정의
+  name = var.domain_name  # variables.tf에서 정의
 
   tags = {
     Name    = "${var.project_name}-zone"
@@ -33,9 +33,9 @@ resource "aws_route53_zone" "main" {
 # }
 
 
-########################################
+#######################################
 # Route 53 Failover Records
-########################################
+#######################################
 
 # cloudflare_tunnel_domain 준비되면 주석 해제
 # resource "aws_route53_record" "primary" {
