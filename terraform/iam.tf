@@ -158,10 +158,10 @@ resource "aws_iam_role_policy" "karpenter_controller" {
           "ec2:DescribeLaunchTemplates",
           "ec2:DescribeVpcs",
           "ec2:DescribeNetworkInterfaces",
-          "eks:DescribeCluster",          # 클러스터 정보 조회
-          "iam:PassRole",                 # Worker Node Role을 EC2에 전달
-          "pricing:GetProducts",          # 인스턴스 가격 정보 조회
-          "ssm:GetParameter"              # AMI ID 조회 (SSM Parameter Store)
+          "eks:DescribeCluster", # 클러스터 정보 조회
+          "iam:PassRole",        # Worker Node Role을 EC2에 전달
+          "pricing:GetProducts", # 인스턴스 가격 정보 조회
+          "ssm:GetParameter"     # AMI ID 조회 (SSM Parameter Store)
         ]
         Resource = "*"
       }
@@ -407,7 +407,7 @@ resource "aws_iam_policy" "aws_lbc" {
         Resource = "arn:aws:ec2:*:*:security-group/*"
         Condition = {
           Null = {
-            "aws:RequestedRegion"              = "false"
+            "aws:RequestedRegion"                     = "false"
             "aws:ResourceTag/ingress.k8s.aws/cluster" = "false"
           }
         }
@@ -628,6 +628,17 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "eks:CreateAddon",
           "eks:UpdateAddon",
           "eks:DescribeAddon"
+        ]
+        Resource = "*"
+      },
+      {
+        # DMS 복제 인스턴스 조회 + 태스크 조회 + 실행
+        # GitHub Actions에서 DMS 복제 인스턴스/태스크를 조회하고 실행할 때 사용
+        Effect = "Allow"
+        Action = [
+          "dms:DescribeReplicationInstances",
+          "dms:DescribeReplicationTasks",
+          "dms:StartReplicationTask"
         ]
         Resource = "*"
       }

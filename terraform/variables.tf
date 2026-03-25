@@ -30,7 +30,7 @@ variable "monitoring_instance_type" {
 # EC2 SSH 접속용 키페어 이름
 # AWS 콘솔에서 미리 만들어둔 키페어 이름 입력
 variable "key_name" {
-  default = "my-terraform-key"  # 실제 보유한 키페어 이름
+  default = "my-terraform-key" # 실제 보유한 키페어 이름
 }
 
 # RDS 마스터 비밀번호
