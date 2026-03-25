@@ -83,3 +83,10 @@ output "vpc_id" {
   description = "VPC ID"
   value       = aws_vpc.main.id
 }
+
+# 백업용 S3 bucket 이름 출력
+# 추후 백업 스크립트나 문서화 시 참조 가능
+output "backup_bucket_name" {
+  description = "백업용 S3 버킷 이름"
+  value       = aws_s3_bucket.backup.bucket
+}

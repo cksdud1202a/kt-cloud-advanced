@@ -183,3 +183,59 @@ jobs:
             -e tailscale_auth_key=${{ secrets.TAILSCALE_AUTH_KEY }} \
             -e efs_id=${{ steps.tf_output.outputs.efs_id }} \
             -e onprem_mysql_ip=${{ secrets.ONPREM_MYSQL_IP }}
+
+      - name: DMS 복제 시작
+        run: |
+          REP_ARN=$(aws dms describe-replication-instances \
+            --region ${{ env.AWS_REGION }} \
+            --query "ReplicationInstances[0].ReplicationInstanceArn" \
+            --output text)
+          SRC_ARN=$(aws dms describe-endpoints \
+            --region ${{ env.AWS_REGION }} \
+            --query "Endpoints[?EndpointIdentifier=='hybrid-dr-source-mysql'].EndpointArn" \
+            --output text)
+          TASK_ARN=$(aws dms describe-replication-tasks \
+            --region ${{ env.AWS_REGION }} \
+            --query "ReplicationTasks[?ReplicationTaskIdentifier=='hybrid-dr-cdc-task'].ReplicationTaskArn" \
+            --output text)
+
+          # 소스 엔드포인트 연결 테스트
+          aws dms test-connection \
+            --replication-instance-arn $REP_ARN \
+            --endpoint-arn $SRC_ARN \
+            --region ${{ env.AWS_REGION }}
+
+          # 연결 테스트 완료 대기 (최대 2분)
+          for i in $(seq 1 24); do
+            STATUS=$(aws dms describe-connections \
+              --region ${{ env.AWS_REGION }} \
+              --query "Connections[?EndpointIdentifier=='hybrid-dr-source-mysql'].Status" \
+              --output text)
+            echo "연결 상태: $STATUS"
+            if [ "$STATUS" = "successful" ]; then break; fi
+            if [ "$STATUS" = "failed" ]; then echo "소스 엔드포인트 연결 실패"; exit 1; fi
+            sleep 5
+          done
+
+          # 태스크 상태 확인 후 시작
+          TASK_STATUS=$(aws dms describe-replication-tasks \
+            --region ${{ env.AWS_REGION }} \
+            --query "ReplicationTasks[?ReplicationTaskIdentifier=='hybrid-dr-cdc-task'].Status" \
+            --output text)
+          echo "DMS 태스크 상태: $TASK_STATUS"
+
+          if [ "$TASK_STATUS" = "running" ]; then
+            echo "DMS 태스크 이미 실행 중"
+          elif [ "$TASK_STATUS" = "ready" ]; then
+            aws dms start-replication-task \
+              --replication-task-arn $TASK_ARN \
+              --start-replication-task-type start-replication \
+              --region ${{ env.AWS_REGION }}
+            echo "DMS 복제 태스크 시작됨"
+          else
+            aws dms start-replication-task \
+              --replication-task-arn $TASK_ARN \
+              --start-replication-task-type resume-processing \
+              --region ${{ env.AWS_REGION }}
+            echo "DMS 복제 태스크 재시작됨 (resume)"
+          fi
