@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: php-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Samsisekki/gitops-repo
+    targetRevision: HEAD
+    path: my_web_chart/aws
+    helm:
+      parameters:
+        - name: db.host
+          value: "__RDS_ENDPOINT__"   # GitHub Actions가 RDS 엔드포인트로 치환
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true      # Git에 없는 리소스 자동 삭제
+      selfHeal: true   # 누군가 수동으로 변경하면 자동 복구

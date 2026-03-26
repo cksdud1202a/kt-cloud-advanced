@@ -164,6 +164,25 @@ jobs:
           kubectl get pods -A
           kubectl get ingress
 
+      - name: ArgoCD 설치/업그레이드
+        run: |
+          helm repo add argo https://argoproj.github.io/argo-helm
+          helm repo update
+          helm upgrade --install argocd argo/argo-cd \
+            --namespace argocd --create-namespace \
+            --set server.service.type=ClusterIP \
+            --wait --timeout 5m
+
+      - name: ArgoCD Application 배포 (php-app)
+        run: |
+          RDS_ENDPOINT=$(aws rds describe-db-instances \
+            --query "DBInstances[?DBInstanceIdentifier=='hybrid-dr-dr-rds'].Endpoint.Address" \
+            --output text --region ${{ env.AWS_REGION }})
+
+          sed -i "s|__RDS_ENDPOINT__|$RDS_ENDPOINT|g" k8s/argocd/application.yaml
+
+          kubectl apply -f k8s/argocd/application.yaml
+
       - name: Ansible 의존성 설치
         run: pip install ansible boto3 botocore
 

@@ -630,6 +630,19 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "eks:DescribeAddon"
         ]
         Resource = "*"
+      },
+      {
+        # DMS 복제 시작/조회 (deploy.yml DMS 복제 시작 스텝)
+        Effect = "Allow"
+        Action = [
+          "dms:DescribeReplicationInstances",
+          "dms:DescribeEndpoints",
+          "dms:DescribeReplicationTasks",
+          "dms:DescribeConnections",
+          "dms:TestConnection",
+          "dms:StartReplicationTask"
+        ]
+        Resource = "*"
       }
     ]
   })
