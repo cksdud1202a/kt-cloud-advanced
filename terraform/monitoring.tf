@@ -5,8 +5,8 @@
 # ----------------------------------------
 
 resource "aws_instance" "monitoring" {
-  ami           = data.aws_ami.ubuntu.id  # providers.tf에서 정의한 AMI
-  instance_type = var.monitoring_instance_type  # t3.micro
+  ami           = data.aws_ami.ubuntu.id       # providers.tf에서 정의한 AMI
+  instance_type = var.monitoring_instance_type # t3.micro
 
   # public3 (AZ-c) 전용
   # public1, public2는 Worker Node 전용이라 분리
@@ -33,5 +33,5 @@ resource "aws_instance" "monitoring" {
 # Instance Profile을 통해 IAM Role 연결
 resource "aws_iam_instance_profile" "monitoring" {
   name = "${var.project_name}-monitoring-profile"
-  role = aws_iam_role.monitoring.name  # iam.tf 참조
+  role = aws_iam_role.monitoring.name # iam.tf 참조
 }

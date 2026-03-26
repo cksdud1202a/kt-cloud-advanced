@@ -4,7 +4,7 @@
 
 # 테스트용 임시 도메인
 resource "aws_route53_zone" "main" {
-  name = var.domain_name  # variables.tf에서 정의
+  name = var.domain_name # variables.tf에서 정의
 
   tags = {
     Name    = "${var.project_name}-zone"

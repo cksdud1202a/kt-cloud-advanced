@@ -61,7 +61,7 @@ resource "aws_security_group" "efs" {
 
   ingress {
     description = "NFS from VPC"
-    from_port   = 2049  # NFS 포트
+    from_port   = 2049 # NFS 포트
     to_port     = 2049
     protocol    = "tcp"
     cidr_blocks = ["192.168.0.0/16"]

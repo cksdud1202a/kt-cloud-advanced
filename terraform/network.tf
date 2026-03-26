@@ -10,7 +10,7 @@ resource "aws_vpc" "main" {
   cidr_block           = "192.168.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
-  tags = { Name = "${var.project_name}-vpc", Project = var.project_name }
+  tags                 = { Name = "${var.project_name}-vpc", Project = var.project_name }
 }
 
 # Internet Gateway 생성 및 VPC 연결
@@ -40,10 +40,10 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name                                        = "${var.project_name}-public-subnet-1"
+    Name                                            = "${var.project_name}-public-subnet-1"
     "kubernetes.io/cluster/${var.project_name}-eks" = "owned"
-    "kubernetes.io/role/elb"                    = "1"
-    "karpenter.sh/discovery"                    = var.project_name
+    "kubernetes.io/role/elb"                        = "1"
+    "karpenter.sh/discovery"                        = var.project_name
   }
 }
 
@@ -55,10 +55,10 @@ resource "aws_subnet" "public2" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name                                        = "${var.project_name}-public-subnet-2"
+    Name                                            = "${var.project_name}-public-subnet-2"
     "kubernetes.io/cluster/${var.project_name}-eks" = "owned"
-    "kubernetes.io/role/elb"                    = "1"
-    "karpenter.sh/discovery"                    = var.project_name
+    "kubernetes.io/role/elb"                        = "1"
+    "karpenter.sh/discovery"                        = var.project_name
   }
 }
 
@@ -84,7 +84,7 @@ resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "192.168.2.0/24"
   availability_zone = data.aws_availability_zones.available.names[0]
-  tags = { Name = "${var.project_name}-private-subnet-1" }
+  tags              = { Name = "${var.project_name}-private-subnet-1" }
 }
 
 # Private Subnet 2 (AZ-b)
@@ -94,7 +94,7 @@ resource "aws_subnet" "private2" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "192.168.4.0/24"
   availability_zone = data.aws_availability_zones.available.names[1]
-  tags = { Name = "${var.project_name}-private-subnet-2" }
+  tags              = { Name = "${var.project_name}-private-subnet-2" }
 }
 
 # ----------------------------------------

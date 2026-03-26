@@ -87,7 +87,7 @@ resource "aws_db_parameter_group" "mysql" {
   parameter {
     name         = "binlog_format"
     value        = "ROW"
-    apply_method = "immediate"  # dynamic 파라미터 — 재부팅 없이 즉시 적용
+    apply_method = "immediate" # dynamic 파라미터 — 재부팅 없이 즉시 적용
   }
 
   tags = {

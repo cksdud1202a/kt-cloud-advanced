@@ -5,12 +5,12 @@
 
 resource "aws_eks_cluster" "main" {
   name     = "${var.project_name}-eks"
-  role_arn = aws_iam_role.eks_cluster.arn  # iam.tf 참조
+  role_arn = aws_iam_role.eks_cluster.arn # iam.tf 참조
   version  = "1.29"
 
   # 인증 모드
   access_config {
-    authentication_mode = "API_AND_CONFIG_MAP"
+    authentication_mode                         = "API_AND_CONFIG_MAP"
     bootstrap_cluster_creator_admin_permissions = true
   }
 
@@ -25,7 +25,7 @@ resource "aws_eks_cluster" "main" {
     security_group_ids = [aws_security_group.eks_cluster.id]
 
     # kubectl로 외부에서 EKS API 접근 허용
-    endpoint_public_access  = true
+    endpoint_public_access = true
 
     # VPC 내부에서도 EKS API 접근 허용
     # Worker Node → Control Plane 통신에 필요
@@ -71,13 +71,13 @@ resource "aws_launch_template" "worker" {
 resource "aws_eks_node_group" "worker" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${var.project_name}-worker"
-  node_role_arn   = aws_iam_role.eks_node.arn  # iam.tf 참조
+  node_role_arn   = aws_iam_role.eks_node.arn # iam.tf 참조
 
   # Worker Node는 public1 (AZ-a), public2 (AZ-b)에 배치
   # Karpenter가 DR 시 두 AZ에 분산 배치 (고가용성)
   subnet_ids = [aws_subnet.public.id, aws_subnet.public2.id]
 
-  instance_types = [var.worker_instance_type]  # t3.small
+  instance_types = [var.worker_instance_type] # t3.small
 
   launch_template {
     id      = aws_launch_template.worker.id
@@ -89,7 +89,7 @@ resource "aws_eks_node_group" "worker" {
     desired_size = 1
     min_size     = 1
     # 장애 시 Karpenter가 최대 5개까지 자동 확장
-    max_size     = 5
+    max_size = 5
   }
 
   update_config {
@@ -109,10 +109,10 @@ resource "aws_eks_node_group" "worker" {
   ]
 
   tags = {
-    Name                                        = "${var.project_name}-worker"
-    Project                                     = var.project_name
+    Name    = "${var.project_name}-worker"
+    Project = var.project_name
     # Karpenter가 이 태그로 관리할 노드 탐색
-    "karpenter.sh/discovery"                    = var.project_name
+    "karpenter.sh/discovery" = var.project_name
     # 이 노드가 해당 EKS 클러스터 소속임을 표시
     "kubernetes.io/cluster/${var.project_name}-eks" = "owned"
   }
@@ -143,7 +143,7 @@ resource "aws_eks_access_entry" "karpenter_node" {
 
 resource "aws_eks_access_entry" "github_actions" {
   cluster_name  = aws_eks_cluster.main.name
-  principal_arn = aws_iam_role.github_actions_deploy.arn  # iam.tf 참조 (하드코딩 제거)
+  principal_arn = aws_iam_role.github_actions_deploy.arn # iam.tf 참조 (하드코딩 제거)
   type          = "STANDARD"
 }
 
