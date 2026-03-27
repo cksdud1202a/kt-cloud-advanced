@@ -2,7 +2,7 @@ name: Deploy to EKS
 
 "on":
   push:
-    branches: [main]
+    branches: [main ,feature/node-exporter]
   workflow_dispatch:
 
 env:
@@ -126,6 +126,12 @@ jobs:
             --namespace kube-system \
             --values k8s/metrics-server/helm-values.yaml \
             --wait --timeout 3m
+
+      - name: Node Exporter 배포
+        run: |
+          kubectl apply -f k8s/monitoring/node-exporter.yaml
+          kubectl rollout status daemonset/node-exporter -n monitoring --timeout=3m
+          kubectl get pods -n monitoring -o wide
 
       - name: EFS CSI Driver 설치
         run: |
