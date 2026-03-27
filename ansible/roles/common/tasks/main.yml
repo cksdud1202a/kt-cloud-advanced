@@ -39,3 +39,15 @@
     path: /etc/fstab
     line: '/swapfile none swap sw 0 0'
     state: present
+
+- name: Prometheus Node Exporter 컨테이너 실행
+  community.docker.docker_container:
+    name: node-exporter
+    image: quay.io/prometheus/node-exporter:latest
+    network_mode: host
+    pid_mode: host
+    restart_policy: always
+    volumes:
+      - "/:/host:ro,rslave"
+    command:
+      - '--path.rootfs=/host'
