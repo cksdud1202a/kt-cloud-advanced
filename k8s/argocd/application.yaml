@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/Samsisekki/gitops-repo
-    targetRevision: HEAD
+    targetRevision: main
     path: my_web_chart/aws
     helm:
       parameters:
