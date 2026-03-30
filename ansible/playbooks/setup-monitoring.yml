@@ -10,4 +10,4 @@
     - common      # swap, 패키지 업데이트
     - tailscale   # Tailscale VPN 설치 + 연결 감지 서비스 (수동 연결 필요 — README 참고)
     - docker      # Docker 설치
-    # - monitoring  # Prometheus, Grafana 컨테이너 실행, 후에 추가
+    - monitoring  # Prometheus, Grafana 컨테이너 실행, 후에 추가

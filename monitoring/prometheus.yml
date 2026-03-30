@@ -6,8 +6,23 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-   - job_name: 'worker-nodes'
-     static_configs:
-       - targets:
-        - '43.203.242.176:9100'
-        - '43.203.221.73:9100'
+  - job_name: 'worker-nodes'
+    static_configs:
+      - targets:
+          - '43.203.242.176:9100'
+          - '43.203.221.73:9100'
+
+  - job_name: 'on-premise-nodes'
+    static_configs:
+      - targets:
+          - '192.168.56.10:9100'
+          - '192.168.56.11:9100'
+          - '192.168.56.12:9100'
+
+  - job_name: 'on-premise-k8s-state'
+    static_configs:
+      - targets: ['192.168.56.11:30081']
+
+  - job_name: 'on-premise-mysql'
+    static_configs:
+      - targets: ['192.168.56.11:30082']

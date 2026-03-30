@@ -1,0 +1,33 @@
+name: Deploy Monitoring to EC2
+
+on:
+  push:
+    paths:
+      - 'monitoring/**'  
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy Monitoring files to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.ANSIBLE_SSH_KEY }} 
+          source: "monitoring/*"
+          target: "/home/ubuntu/monitoring"
+          strip_components: 1
+
+      - name: Docker Compose Up
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.ANSIBLE_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/monitoring
+            docker compose up -d
