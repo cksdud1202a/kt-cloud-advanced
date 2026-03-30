@@ -557,10 +557,11 @@ resource "aws_iam_role" "github_actions_deploy" {
       Principal = {
         Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
       }
+      # 특정 저장소만 허용하려면 아래 StringLike 조건 추가:
+      # StringLike = {
+      #   "token.actions.githubusercontent.com:sub" = "repo:Samsisekki/Infra_terraform:*"
+      # }
       Condition = {
-        StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:Samsisekki/Infra_terraform:*"
-        }
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
