@@ -1,33 +1,31 @@
-name: Deploy Monitoring to EC2
+name: Deploy Monitoring System
 
 on:
   push:
+    branches:
+      - main
     paths:
-      - 'monitoring/**'  
+      - 'monitoring/**'
+      - '.github/workflows/deploy-monitoring.yml'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Copy Monitoring files to EC2
-        uses: appleboy/scp-action@master
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.ANSIBLE_SSH_KEY }} 
-          source: "monitoring/*"
-          target: "/home/ubuntu/monitoring"
-          strip_components: 1
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ap-northeast-2
 
-      - name: Docker Compose Up
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.ANSIBLE_SSH_KEY }}
-          script: |
-            cd /home/ubuntu/monitoring
-            docker compose up -d
+      - name: Copy files to EC2
+        run: |
+          scp -r ./monitoring ubuntu@43.201.28.207:/home/ubuntu/
+
+      - name: Deploy with Docker Compose
+        run: |
+          # 서버에서 기존 컨테이너 재시작 및 설정 반영
+          ssh ubuntu@43.201.28.207 "cd /home/ubuntu/monitoring && docker-compose up -d --build"
