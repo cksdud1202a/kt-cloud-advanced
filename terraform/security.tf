@@ -118,6 +118,17 @@ resource "aws_security_group_rule" "worker_from_alb_nodeport" {
   description              = "NodePort range ALB to Worker Node"
 }
 
+# Monitoring EC2 → Worker Node Node Exporter
+resource "aws_security_group_rule" "worker_from_monitoring_9100" {
+  type                     = "ingress"
+  from_port                = 9100
+  to_port                  = 9100
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.monitoring.id
+  security_group_id        = aws_security_group.worker_node.id
+  description              = "Monitoring EC2 to Worker Node Node Exporter"
+}
+
 # Monitoring EC2 Security Group
 resource "aws_security_group" "monitoring" {
   name   = "${var.project_name}-monitoring-sg"

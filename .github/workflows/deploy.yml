@@ -2,7 +2,7 @@ name: Deploy to EKS
 
 "on":
   push:
-    branches: [main]
+    branches: [main ,feature/node-exporter]
   workflow_dispatch:
 
 env:
@@ -163,6 +163,8 @@ jobs:
           kubectl rollout status deployment/app --timeout=3m
           kubectl get pods -A
           kubectl get ingress
+
+
 
       - name: ArgoCD 설치/업그레이드
         run: |

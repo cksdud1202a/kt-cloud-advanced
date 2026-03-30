@@ -6,7 +6,7 @@
 resource "aws_eks_cluster" "main" {
   name     = "${var.project_name}-eks"
   role_arn = aws_iam_role.eks_cluster.arn # iam.tf 참조
-  version  = "1.29"
+  version  = "1.30"
 
   # 인증 모드
   access_config {
