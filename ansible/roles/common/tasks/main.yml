@@ -40,6 +40,22 @@
     line: '/swapfile none swap sw 0 0'
     state: present
 
+# Docker 설치
+- name: Docker 패키지 설치
+  apt:
+    name:
+      - docker.io
+      - python3-docker
+    state: present
+    update_cache: yes
+
+# Docker 서비스 시작 및 활성화
+- name: Docker 서비스 실행
+  systemd:
+    name: docker
+    state: started
+    enabled: true
+
 - name: Prometheus Node Exporter 컨테이너 실행
   community.docker.docker_container:
     name: node-exporter

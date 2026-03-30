@@ -644,8 +644,8 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "dms:TestConnection"
         ]
         Resource = "*"
-          },
-          
+      },
+
       {
         # RDS 엔드포인트 조회 (deploy.yml ArgoCD application.yaml 치환용)
         Effect = "Allow"
@@ -653,7 +653,7 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "rds:DescribeDBInstances"
         ]
         Resource = "*"
-        
+
       }
     ]
   })

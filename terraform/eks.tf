@@ -78,6 +78,7 @@ resource "aws_eks_node_group" "worker" {
   subnet_ids = [aws_subnet.public.id, aws_subnet.public2.id]
 
   instance_types = [var.worker_instance_type] # t3.small
+  ami_type       = "AL2_x86_64"
 
   launch_template {
     id      = aws_launch_template.worker.id
