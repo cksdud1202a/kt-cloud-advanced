@@ -2,7 +2,7 @@ name: Deploy to EKS
 
 "on":
   push:
-    branches: [main ,feature/node-exporter]
+    branches: [main]
   workflow_dispatch:
 
 env:
