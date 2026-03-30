@@ -48,3 +48,4 @@ jobs:
             cd /home/ubuntu/monitoring
             sudo docker-compose up -d --build
           ssh ubuntu@43.201.28.207 "cd /home/ubuntu/monitoring && docker-compose up -d --build"
+          
