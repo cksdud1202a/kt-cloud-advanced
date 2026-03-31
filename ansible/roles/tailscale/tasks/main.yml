@@ -45,9 +45,9 @@
   changed_when: "'already' not in tailscale_up_result.stderr"
   when: ts_check.rc != 0 or not (ts_check.stdout | regex_search('^100\\.'))
 
-#########################################
+##########################################
 # Tailscale 연결 감지 후 자동 복제 시작
-#########################################
+##########################################
 
 # 복제 시작 스크립트 설치
 # Tailscale 연결 확인 → NFS 마운트 → rsync cron → DMS task 시작
