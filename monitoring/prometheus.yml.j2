@@ -6,12 +6,12 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'worker-nodes'
+  # AWS 워커노드 + 카펜터노드 통합 수집
+  - job_name: 'aws-kubernetes-cluster'
     static_configs:
-      - targets:
-          - '15.164.177.92:9100'
-          - '43.203.221.73:9100'
+      - targets: ['192.168.56.11:30081']
 
+  # 온프레미스 서버
   - job_name: 'on-premise-nodes'
     static_configs:
       - targets:
@@ -19,10 +19,7 @@ scrape_configs:
           - '192.168.56.11:9100'
           - '192.168.56.12:9100'
 
-  - job_name: 'on-premise-k8s-state'
-    static_configs:
-      - targets: ['192.168.56.11:30081']
-
+  # 온프레미스 DB 수집
   - job_name: 'on-premise-mysql'
     static_configs:
       - targets: ['192.168.56.11:31859']
