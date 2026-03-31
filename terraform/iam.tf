@@ -540,9 +540,9 @@ resource "aws_iam_role_policy_attachment" "aws_lbc" {
   policy_arn = aws_iam_policy.aws_lbc.arn
 }
 
-#######################################
+########################################
 # GitHub Actions Deploy Role (OIDC)
-#######################################
+########################################
 
 data "aws_caller_identity" "current" {}
 
@@ -557,17 +557,12 @@ resource "aws_iam_role" "github_actions_deploy" {
       Principal = {
         Federated = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
       }
-      # 특정 저장소만 허용하려면 아래 StringLike 조건 추가:
-      # StringLike = {
-      #   "token.actions.githubusercontent.com:sub" = "repo:Samsisekki/Infra_terraform:*"
-      # }
       Condition = {
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:Samsisekki/Infra_terraform:*"
+        }
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-        }
-        StringLike = {
-          # 모든 저장소 허용 (특정 저장소만 허용하려면 "repo:Samsisekki/저장소명:*" 으로 변경)
-          "token.actions.githubusercontent.com:sub" = "repo:*:*"
         }
       }
     }]
@@ -649,8 +644,8 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "dms:TestConnection"
         ]
         Resource = "*"
-          },
-          
+      },
+
       {
         # RDS 엔드포인트 조회 (deploy.yml ArgoCD application.yaml 치환용)
         Effect = "Allow"
@@ -658,7 +653,7 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "rds:DescribeDBInstances"
         ]
         Resource = "*"
-        
+
       }
     ]
   })

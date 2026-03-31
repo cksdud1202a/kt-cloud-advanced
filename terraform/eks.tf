@@ -6,7 +6,7 @@
 resource "aws_eks_cluster" "main" {
   name     = "${var.project_name}-eks"
   role_arn = aws_iam_role.eks_cluster.arn # iam.tf 참조
-  version  = "1.30"
+  version  = "1.29"
 
   # 인증 모드
   access_config {
@@ -78,6 +78,7 @@ resource "aws_eks_node_group" "worker" {
   subnet_ids = [aws_subnet.public.id, aws_subnet.public2.id]
 
   instance_types = [var.worker_instance_type] # t3.small
+  ami_type       = "AL2_x86_64"
 
   launch_template {
     id      = aws_launch_template.worker.id

@@ -1,0 +1,41 @@
+name: Deploy Monitoring System
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'monitoring/**'
+      - '.github/workflows/deploy-monitoring.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Ansible & AWS Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible python3-boto3 python3-botocore
+
+      - name: Run Ansible Playbook (Dynamic Inventory)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ap-northeast-2
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+        run: |
+          # 1. SSH 키 생성 (Secrets에 저장된 키 사용)
+          echo "${{ secrets.ANSIBLE_SSH_KEY }}" > key.pem
+          chmod 400 key.pem
+          
+          # 2. 앤서블 실행 (IP 수정 필요 없음)
+          ansible-playbook -i ansible/inventory/inventory.aws_ec2.yml \
+          ansible/playbooks/setup-monitoring.yml \
+          --tags "monitoring" \
+          --private-key="key.pem" \
+          -u ubuntu \
+          -e "ansible_python_interpreter=/usr/bin/python3"
+          
